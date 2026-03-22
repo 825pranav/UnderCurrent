@@ -1,0 +1,23 @@
+# UnderCurrent — Python dependencies
+#
+# SIMULATE MODE (default):
+#   No external packages needed. Python 3.8+ stdlib only.
+#   Just run: python3 stateless/main.py
+#
+# REAL MODE (eBPF, Linux + root only):
+#   bcc is a system package — NOT installable via pip.
+#   Install it for your distro first:
+#
+#   Ubuntu / Debian:
+#     sudo apt-get install bpfcc-tools python3-bpfcc linux-headers-$(uname -r)
+#
+#   Fedora / RHEL:
+#     sudo dnf install bcc bcc-tools python3-bcc kernel-devel
+#
+#   Then run: sudo python3 stateless/main.py --real
+#
+# DOCKER ACTIONS (optional):
+#   Requires Docker daemon running on the host.
+#   Install: https://docs.docker.com/engine/install/
+#
+# No pip packages are required for this project.

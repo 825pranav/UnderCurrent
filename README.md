@@ -124,6 +124,34 @@ sudo python3 main.py --real --shadow   # dry-run: observe without acting
 
 ---
 
+## Dashboards
+
+### Terminal dashboard (Rich)
+
+```bash
+pip install rich
+python3 stateless/dashboard.py
+```
+
+Live-updating terminal UI — container risk table, action counters, live event feed. No browser needed. Best for live demos.
+
+### Web dashboard (Streamlit)
+
+Run the pipeline in one terminal, open the dashboard in another:
+
+```bash
+# Terminal 1 — generate traces
+python3 stateless/main.py
+
+# Terminal 2 — open web dashboard
+pip install streamlit pandas plotly
+streamlit run stateless/streamlit_dashboard.py
+```
+
+Opens at `http://localhost:8501` — confidence score charts, action distribution, per-container risk cards, filterable audit log. Auto-refreshes every 4 seconds.
+
+---
+
 ## Reading the audit log
 
 Every decision is appended to `stateless/traces.jsonl`:

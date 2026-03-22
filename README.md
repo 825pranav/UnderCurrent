@@ -72,10 +72,22 @@ UnderCurrent/
 │   ├── actions.py          S6  action executor (restart / reschedule)
 │   ├── trace_logger.py     S7  append-only JSON-line audit log
 │   └── traces.jsonl             auto-created at runtime
-├── stateful/               ← partner module (separate)
-├── shared/                 ← shared utilities
+├── stateful/               ← partner module (add your files here)
+├── shared/                 ← shared utilities (cross-module helpers)
 └── README.md
 ```
+
+---
+
+## Contributing — Stateful module
+
+The `stateful/` folder is reserved for the stateful side of the control plane (developed separately).
+
+To contribute:
+1. Clone the repo: `git clone https://github.com/825pranav/UnderCurrent.git`
+2. Add your files inside `stateful/`
+3. If your code has pip dependencies, add them to `requirements.txt` under a `# STATEFUL` section
+4. Open a PR or push directly to `main`
 
 ---
 

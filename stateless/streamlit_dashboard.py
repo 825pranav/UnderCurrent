@@ -138,7 +138,7 @@ with col_left:
             margin=dict(l=0, r=0, t=30, b=0),
             height=300,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     else:
         st.caption("No real-path score data yet.")
 
@@ -160,7 +160,7 @@ with col_right:
         height=300,
     )
     fig2.update_traces(textposition="outside", textinfo="percent+label")
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")
 
 st.divider()
 
@@ -206,15 +206,9 @@ display_df = df_f[display_cols].sort_values("trace_time", ascending=False).copy(
 display_df["trace_time"] = display_df["trace_time"].dt.strftime("%H:%M:%S")
 display_df.columns = ["Time", "Container", "Score", "Action", "Mode", "Why", "Executed"]
 
-def _color_action(val):
-    colors = {"reschedule": "color: #F44336; font-weight:bold",
-              "restart":    "color: #FFC107; font-weight:bold",
-              "no_action":  "color: #4CAF50"}
-    return colors.get(val, "")
-
 st.dataframe(
-    display_df.style.applymap(_color_action, subset=["Action"]),
-    use_container_width=True,
+    display_df,
+    width="stretch",
     height=350,
 )
 

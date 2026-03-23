@@ -1,61 +1,72 @@
 # UnderCurrent
 
-**A Risk-Aware Autonomic Control Plane** — an experimental system that monitors containerised workloads at the kernel level, scores failure risk in real time, and automatically decides whether to restart or reschedule a container — all without a human in the loop.
+**A Risk-Aware Autonomic Control Plane** — monitors containerised workloads at the kernel level, scores failure risk in real time, and automatically triggers corrective actions without human intervention. Two parallel tracks: **Stateless (Type S)** and **Stateful (Type F)**.
+
+**Authors:** Pranav Negi (Stateless / Type S) · Reema (Stateful / Type F)
 
 ---
 
 ## How it works
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        UnderCurrent                             │
-│                                                                 │
-│  Kernel events                                                  │
-│  (eBPF / simulated)                                             │
-│        │                                                        │
-│        ▼                                                        │
-│  ┌──────────────┐     ┌──────────────┐     ┌────────────────┐  │
-│  │ EventListener│────▶│  StateStore  │────▶│  Confidence    │  │
-│  │  (S1–S2)     │     │  60s window  │     │  Scorer (S4)   │  │
-│  └──────────────┘     └──────────────┘     └───────┬────────┘  │
-│                                                    │           │
-│                                              score (0.0–1.0)   │
-│                                                    │           │
-│                                                    ▼           │
-│                                          ┌─────────────────┐   │
-│                                          │   Reconcile     │   │
-│                                          │  Decision DAG   │   │
-│                                          │     (S5)        │   │
-│                                          └────────┬────────┘   │
-│                                                   │            │
-│                              ┌────────────────────┤            │
-│                              │                    │            │
-│                         [real path]         [shadow path]      │
-│                              │                    │            │
-│                              ▼                    ▼            │
-│                       ┌────────────┐      ┌────────────────┐   │
-│                       │  Actions   │      │  Shadow log    │   │
-│                       │  (S6)      │      │  (dry-run)     │   │
-│                       └─────┬──────┘      └───────┬────────┘   │
-│                             │                     │            │
-│                             └──────────┬──────────┘            │
-│                                        ▼                       │
-│                                ┌──────────────┐                │
-│                                │ TraceLogger  │                │
-│                                │ traces.jsonl │                │
-│                                └──────────────┘                │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                           UnderCurrent                                   │
+│                                                                          │
+│   ── Stateless Track (Type S) ──────────────────────────────────────     │
+│                                                                          │
+│   Kernel events          StateStore        Confidence                    │
+│   (eBPF / simulated) ──▶ 60s window    ──▶ Scorer (0.0–1.0)             │
+│                                                    │                     │
+│                                          ┌─────────▼──────────┐         │
+│                                          │  Reconcile DAG      │         │
+│                                          │  restart/reschedule │         │
+│                                          └──────┬──────┬───────┘         │
+│                                           [real]│  [shadow]              │
+│                                                 ▼      ▼                 │
+│                                          Actions   Shadow log            │
+│                                                 │                        │
+│                                          stateless/traces.jsonl          │
+│                                                                          │
+│   ── Stateful Track (Type F) ───────────────────────────────────────     │
+│                                                                          │
+│   Kernel events          StatefulStateStore   Confidence                 │
+│   (I/O, volume, net) ──▶ 60s window       ──▶ Scorer (I/O signals)      │
+│                                                    │                     │
+│                                          ┌─────────▼──────────┐         │
+│                                          │  FSM-Gated Reconcile│         │
+│                                          │  flush/checkpoint/  │         │
+│                                          │  escalate           │         │
+│                                          └──────┬──────┬───────┘         │
+│                                           [real]│  [shadow]              │
+│                                                 ▼      ▼                 │
+│                                          Actions   Shadow log            │
+│                                                 │                        │
+│                                          stateful/traces.jsonl           │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Decision logic
+---
 
-| Confidence score | Action taken |
+## Decision logic
+
+### Stateless (Type S)
+
+| Confidence score | Action |
 |---|---|
 | `< 0.80` | no action |
 | `0.80 – 0.94` | `docker restart <container>` |
 | `≥ 0.95` | reschedule (simulated) |
 
-Every decision — real or shadow — is appended to `stateless/traces.jsonl` with a human-readable `why` field for explainability.
+### Stateful (Type F) — FSM-gated
+
+| Confidence score | Raw action | FSM gate |
+|---|---|---|
+| `< 0.50` | no action | — |
+| `0.50 – 0.79` | flush I/O queue | Degraded → Audited |
+| `0.80 – 0.94` | checkpoint & restart | Audited → Repairing |
+| `≥ 0.95` | escalate | Degraded / Audited / Repairing |
+
+FSM states: `Healthy → Degraded → Audited → Repairing → Recovered → Healthy`
 
 ---
 
@@ -63,111 +74,120 @@ Every decision — real or shadow — is appended to `stateless/traces.jsonl` wi
 
 ```
 UnderCurrent/
-├── stateless/              ← autonomic control plane (this project)
-│   ├── main.py             S8  orchestrator — wires the full pipeline
-│   ├── event_listener.py   S1  eBPF kernel event capture
-│   ├── state_store.py      S3  60s sliding-window failure tracker
-│   ├── confidence.py       S4  risk scorer (0.0–1.0)
-│   ├── reconcile.py        S5  decision engine + shadow controller
-│   ├── actions.py          S6  action executor (restart / reschedule)
-│   ├── trace_logger.py     S7  append-only JSON-line audit log
-│   └── traces.jsonl             auto-created at runtime
-├── stateful/               ← partner module (add your files here)
-├── shared/                 ← shared utilities (cross-module helpers)
+├── stateless/                   ← Type S control plane (Pranav)
+│   ├── main.py                  orchestrator — full pipeline
+│   ├── event_listener.py        eBPF kernel event capture
+│   ├── state_store.py           60s sliding-window failure tracker
+│   ├── confidence.py            risk scorer (0.0–1.0)
+│   ├── reconcile.py             decision DAG + shadow controller
+│   ├── actions.py               restart / reschedule executor
+│   ├── trace_logger.py          append-only JSON-line audit log
+│   ├── dashboard.py             Rich live terminal dashboard
+│   ├── streamlit_dashboard.py   Streamlit web dashboard (port 8501)
+│   └── testing/                 dataset evaluation framework (RCAEval / Alibaba)
+│
+├── stateful/                    ← Type F control plane (Reema)
+│   ├── main.py                  orchestrator — full pipeline
+│   ├── event_listener.py        eBPF kernel event capture (I/O + volume signals)
+│   ├── state_store.py           StatefulStateStore — extended event schema
+│   ├── fsm.py                   ContainerFSM — formal state machine enforcement
+│   ├── confidence.py            risk scorer (I/O latency + volume signals)
+│   ├── reconcile.py             FSM-gated decision engine + shadow controller
+│   ├── actions.py               flush / checkpoint_restart / escalate executor
+│   ├── trace_logger.py          append-only JSON-line audit log (extended schema)
+│   ├── dashboard.py             Rich live terminal dashboard
+│   └── streamlit_dashboard.py  Streamlit web dashboard (port 8502)
+│
+├── shared/                      ← cross-track shared contracts
+│   ├── trace_schema.py          field catalogue + schema version (1.1.0)
+│   └── constants.py             shared thresholds (single source of truth)
+│
+├── integration/                 ← unified integration layer
+│   ├── launcher.py              start both pipelines + unified dashboard
+│   └── unified_dashboard.py    single Streamlit view of both trace files
+│
+├── requirements.txt
 └── README.md
 ```
 
 ---
 
-## Contributing — Stateful module
-
-The `stateful/` folder is reserved for the stateful side of the control plane (developed separately).
-
-To contribute:
-1. Clone the repo: `git clone https://github.com/825pranav/UnderCurrent.git`
-2. Add your files inside `stateful/`
-3. If your code has pip dependencies, add them to `requirements.txt` under a `# STATEFUL` section
-4. Open a PR or push directly to `main`
-
----
-
 ## Quickstart
 
-### Simulate mode (no root, no BPF — works on any machine)
+### Run everything (recommended)
 
 ```bash
 git clone https://github.com/825pranav/UnderCurrent.git
+cd UnderCurrent
+python3 integration/launcher.py
+```
+
+Opens both pipelines + unified dashboard at `http://localhost:8501`
+
+---
+
+### Run tracks independently
+
+**Stateless only:**
+```bash
 cd UnderCurrent/stateless
 python3 main.py
 ```
 
-This generates synthetic container events and runs the full pipeline locally. No extra dependencies needed.
+**Stateful only:**
+```bash
+cd UnderCurrent/stateful
+python3 main.py
+```
 
-**Options:**
-
+**Options (both tracks):**
 ```bash
 python3 main.py --interval 10   # reconcile every 10s (default: 5s)
-python3 main.py --rate 2        # one synthetic event every ~2s (default: 1.5s)
-python3 main.py --shadow        # log decisions only, skip real actions
+python3 main.py --shadow        # dry-run only, no real actions
 ```
 
 ---
 
-### Real mode (Linux only — requires root and BPF)
-
-**Prerequisites:**
+### Real eBPF mode (Linux only — requires root)
 
 ```bash
 # Ubuntu / Debian
 sudo apt-get install bpfcc-tools python3-bpfcc linux-headers-$(uname -r)
 
-# Fedora / RHEL
-sudo dnf install bcc bcc-tools python3-bcc kernel-devel
+sudo python3 stateless/main.py --real
+sudo python3 stateful/main.py  --real
 ```
-
-**Run:**
-
-```bash
-sudo python3 main.py --real
-sudo python3 main.py --real --shadow   # dry-run: observe without acting
-```
-
-> Real mode attaches eBPF probes to `sched_process_exit` and `tcp_connect` kernel tracepoints. Root is required.
 
 ---
 
 ## Dashboards
 
-### Terminal dashboard (Rich)
-
+### Unified web dashboard
 ```bash
-pip install rich
-python3 stateless/dashboard.py
+streamlit run integration/unified_dashboard.py
+# http://localhost:8501
+```
+Shows both tracks combined — score timeline, action distribution per track, FSM state panel, unified audit log.
+
+### Per-track terminal dashboards
+```bash
+python3 stateless/dashboard.py   # Rich live UI — Type S
+python3 stateful/dashboard.py    # Rich live UI — Type F
 ```
 
-Live-updating terminal UI — container risk table, action counters, live event feed. No browser needed. Best for live demos.
-
-### Web dashboard (Streamlit)
-
-Run the pipeline in one terminal, open the dashboard in another:
-
+### Per-track web dashboards
 ```bash
-# Terminal 1 — generate traces
-python3 stateless/main.py
-
-# Terminal 2 — open web dashboard
-pip install streamlit pandas plotly
-streamlit run stateless/streamlit_dashboard.py
+streamlit run stateless/streamlit_dashboard.py   # localhost:8501
+streamlit run stateful/streamlit_dashboard.py    # localhost:8502
 ```
-
-Opens at `http://localhost:8501` — confidence score charts, action distribution, per-container risk cards, filterable audit log. Auto-refreshes every 4 seconds.
 
 ---
 
-## Reading the audit log
+## Audit log format
 
-Every decision is appended to `stateless/traces.jsonl`:
+Both tracks write to their own `traces.jsonl`. Base fields are shared; stateful traces carry additional fields.
 
+**Base fields (both tracks):**
 ```jsonc
 {
   "trace_time": 1774186710.5,
@@ -177,25 +197,54 @@ Every decision is appended to `stateless/traces.jsonl`:
   "mode": "real",
   "why": "score 0.95 >= reschedule threshold 0.95",
   "executed": true,
-  "stdout": "SIMULATED: would reschedule nginx via scheduler",
-  "stderr": "",
+  "stdout": "...", "stderr": "",
   "decision_timestamp": 1774186710.1,
   "action_timestamp": 1774186710.4
 }
 ```
 
+**Additional fields in stateful traces:**
+```jsonc
+{
+  "node_type": "F",
+  "fsm_state": "Degraded",
+  "fsm_transition": "Degraded→Audited",
+  "reversibility": "reversible",
+  "kernel_signals": ["blk_io_latency_high"],
+  "dag_pattern": "io_degradation_major",
+  "blocked_reason": null
+}
+```
+
+Schema version: `1.1.0` — see `shared/trace_schema.py`
+
 ---
 
 ## Module reference
 
+### Stateless (Type S)
+
 | File | Role | Key API |
 |---|---|---|
 | `event_listener.py` | eBPF kernel probe | `EventListener().listen()` |
-| `state_store.py` | Sliding-window event store | `record()`, `get_failures()`, `summary()` |
+| `state_store.py` | Sliding-window store | `record()`, `get_failures()`, `summary()` |
 | `confidence.py` | Risk scorer | `compute_confidence(container, store)` |
 | `reconcile.py` | Decision DAG | `reconcile(store, shadow=False)` |
 | `actions.py` | Action executor | `execute(decision)` |
 | `trace_logger.py` | Audit log | `log_decision(decision, result)` |
+| `main.py` | Orchestrator | `python3 main.py [--real] [--shadow]` |
+
+### Stateful (Type F)
+
+| File | Role | Key API |
+|---|---|---|
+| `event_listener.py` | eBPF — I/O + volume probes | `EventListener().listen()` |
+| `state_store.py` | StatefulStateStore | `record()`, `get_failures()`, `summary()` |
+| `fsm.py` | Container FSM | `ContainerFSM().apply(container, trigger)` |
+| `confidence.py` | I/O risk scorer | `compute_confidence(container, store)` |
+| `reconcile.py` | FSM-gated DAG | `reconcile(store, fsm, shadow=False)` |
+| `actions.py` | flush / checkpoint / escalate | `execute(decision)` |
+| `trace_logger.py` | Extended audit log | `log_decision(decision, result)` |
 | `main.py` | Orchestrator | `python3 main.py [--real] [--shadow]` |
 
 ---
@@ -203,8 +252,21 @@ Every decision is appended to `stateless/traces.jsonl`:
 ## Requirements
 
 - **Simulate mode:** Python 3.8+ — no external packages
-- **Real mode:** Linux kernel 4.9+, root, `bcc` installed as a system package (see above)
-- **Docker actions:** Docker daemon running (for `docker restart`)
+- **Dashboards:** `pip install rich streamlit pandas plotly`
+- **Real eBPF mode:** Linux kernel 4.9+, root, `bcc` system package
+- **Docker actions:** Docker daemon running
+
+See `requirements.txt` for full details.
+
+---
+
+## Branches
+
+| Branch | Contents |
+|---|---|
+| `main` | Both tracks, shared contracts, all dashboards |
+| `integration` | + unified launcher and dashboard |
+| `dataset-evaluation` | + RCAEval / Alibaba evaluation framework |
 
 ---
 

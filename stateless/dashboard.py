@@ -113,6 +113,8 @@ def _real(store: StateStore, stop: threading.Event):
 
 # ── Reconcile loop ────────────────────────────────────────────────────────────
 def _reconcile(store: StateStore, interval: float, shadow: bool, stop: threading.Event):
+    from reconcile import reconcile_both as _reconcile_both
+
     while not stop.is_set():
         # Countdown display
         for remaining in range(int(interval), 0, -1):
@@ -128,29 +130,74 @@ def _reconcile(store: StateStore, interval: float, shadow: bool, stop: threading
         scores = score_all(store)
         ts = datetime.now().strftime("%H:%M:%S")
 
-        for container, score in scores.items():
-            decision = _decide(container, score)
-            decision["mode"] = "shadow" if shadow else "real"
+        if shadow:
+            # Shadow-only mode: compute but never execute
+            for container, score in scores.items():
+                decision = _decide(container, score)
+                decision["mode"] = "shadow"
+                result = execute(decision)
+                _log_decision(decision, result)
+                action = decision["action"]
+                color  = {"reschedule": "red", "restart": "yellow", "no_action": "green"}.get(action, "white")
+                line = (
+                    f"[dim]{ts}[/dim]  [dim magenta][SHADOW][/dim magenta]  "
+                    f"[bold]{container:<10}[/bold]  score=[bold]{score}[/bold]  "
+                    f"→ [{color}]{action}[/{color}]"
+                )
+                with _state_lock:
+                    _state["containers"][container] = {
+                        "score":       score,
+                        "failures":    store.get_failure_count(container),
+                        "last_action": f"[SHADOW] {action}",
+                        "last_ts":     time.time(),
+                    }
+                    _state["action_counts"][action] = _state["action_counts"].get(action, 0) + 1
+                    _state["log"].append(line)
+        else:
+            # Default mode: run BOTH real and shadow paths
+            both = _reconcile_both(store)
+            real_by   = {d["container"]: d for d in both["real"]}
+            shadow_by = {d["container"]: d for d in both["shadow"]}
 
-            result = execute(decision)
-            _log_decision(decision, result)
+            for container, score in scores.items():
+                # Real path
+                r_decision = real_by.get(container)
+                if r_decision:
+                    r_result = execute(r_decision)
+                    _log_decision(r_decision, r_result)
+                    r_action = r_decision["action"]
+                else:
+                    r_action = "?"
 
-            action = decision["action"]
-            color  = {"reschedule": "red", "restart": "yellow", "no_action": "green"}.get(action, "white")
-            line = (
-                f"[dim]{ts}[/dim]  [magenta][decision][/magenta]  "
-                f"[bold]{container:<10}[/bold]  score=[bold]{score}[/bold]  "
-                f"→ [{color}]{action}[/{color}]"
-            )
-            with _state_lock:
-                _state["containers"][container] = {
-                    "score":       score,
-                    "failures":    store.get_failure_count(container),
-                    "last_action": action,
-                    "last_ts":     time.time(),
-                }
-                _state["action_counts"][action] = _state["action_counts"].get(action, 0) + 1
-                _state["log"].append(line)
+                # Shadow path
+                s_decision = shadow_by.get(container)
+                if s_decision:
+                    s_result = execute(s_decision)
+                    _log_decision(s_decision, s_result)
+                    s_action = s_decision["action"]
+                else:
+                    s_action = "?"
+
+                color  = {"reschedule": "red", "restart": "yellow", "no_action": "green"}.get(r_action, "white")
+                s_color = {"reschedule": "red", "restart": "yellow", "no_action": "green"}.get(s_action, "white")
+                diverge_note = ""
+                if r_action != s_action:
+                    diverge_note = f"  [bold red]DIVERGE[/bold red] shadow=[{s_color}]{s_action}[/{s_color}]"
+
+                line = (
+                    f"[dim]{ts}[/dim]  [magenta][REAL][/magenta]  "
+                    f"[bold]{container:<10}[/bold]  score=[bold]{score}[/bold]  "
+                    f"→ [{color}]{r_action}[/{color}]{diverge_note}"
+                )
+                with _state_lock:
+                    _state["containers"][container] = {
+                        "score":       score,
+                        "failures":    store.get_failure_count(container),
+                        "last_action": r_action,
+                        "last_ts":     time.time(),
+                    }
+                    _state["action_counts"][r_action] = _state["action_counts"].get(r_action, 0) + 1
+                    _state["log"].append(line)
 
 
 # ── Rich layout builders ──────────────────────────────────────────────────────

@@ -117,6 +117,8 @@ def _simulate(store: StatefulStateStore, stop: threading.Event, rate: float):
 # ── Reconcile loop ─────────────────────────────────────────────────────────────
 def _reconcile(store: StatefulStateStore, fsm: ContainerFSM,
                interval: float, shadow: bool, stop: threading.Event):
+    from reconcile import reconcile_both as _reconcile_both
+
     while not stop.is_set():
         for remaining in range(int(interval), 0, -1):
             with _state_lock:
@@ -131,64 +133,114 @@ def _reconcile(store: StatefulStateStore, fsm: ContainerFSM,
         scores = score_all(store)
         ts     = datetime.now().strftime("%H:%M:%S")
 
-        # Shadow divergence: run shadow path with a fresh FSM copy
-        shadow_decisions = {
-            d["container"]: d
-            for d in [
-                _decide(c, s, store.get_failures(c), ContainerFSM())
-                for c, s in scores.items()
-            ]
-        }
+        if shadow:
+            # Shadow-only mode: use a throwaway FSM, no real execution
+            throwaway_fsm = ContainerFSM()
+            for container, score in scores.items():
+                failures = store.get_failures(container)
+                decision = _decide(container, score, failures, throwaway_fsm)
+                decision["mode"] = "shadow"
+                result = execute(decision)
+                _log_decision(decision, result)
 
-        for container, score in scores.items():
-            failures = store.get_failures(container)
-            decision = _decide(container, score, failures, fsm)
-            decision["mode"] = "shadow" if shadow else "real"
-
-            result = execute(decision)
-            _log_decision(decision, result)
-
-            # Post-action FSM transitions
-            if not shadow and decision["action"] == "checkpoint_and_restart":
-                if result.get("success"):
-                    fsm.apply(container, "recover")
-                else:
-                    fsm.apply(container, "degrade")
-
-            action = decision["action"]
-            color  = {
-                "escalate":               "red",
-                "checkpoint_and_restart": "yellow",
-                "flush_io_queue":         "cyan",
-                "no_action":              "green",
-            }.get(action, "white")
-            line = (
-                f"[dim]{ts}[/dim]  [magenta][decision][/magenta]  "
-                f"[bold]{container:<14}[/bold]  score=[bold]{score:.2f}[/bold]"
-                f"  fsm={decision['fsm_state']}"
-                f"  → [{color}]{action}[/{color}]"
-            )
-
-            # Check divergence
-            shadow_action = shadow_decisions.get(container, {}).get("action")
-            diverged = shadow_action and shadow_action != action
-            if diverged:
-                line += f"  [dim](shadow would: {shadow_action})[/dim]"
-                with _state_lock:
-                    _state["divergence"] += 1
-
-            with _state_lock:
-                _state["containers"][container] = {
-                    "score":       score,
-                    "fsm_state":   fsm.state(container),
-                    "last_action": action,
-                    "io_stats":    store.get_io_latency_stats(container),
-                    "last_ts":     time.time(),
-                }
-                _state["action_counts"][action] = (
-                    _state["action_counts"].get(action, 0) + 1
+                action = decision["action"]
+                color  = {
+                    "escalate":               "red",
+                    "checkpoint_and_restart": "yellow",
+                    "flush_io_queue":         "cyan",
+                    "no_action":              "green",
+                }.get(action, "white")
+                line = (
+                    f"[dim]{ts}[/dim]  [dim magenta][SHADOW-F][/dim magenta]  "
+                    f"[bold]{container:<14}[/bold]  score=[bold]{score:.2f}[/bold]"
+                    f"  fsm={decision['fsm_state']}"
+                    f"  → [{color}]{action}[/{color}]"
                 )
-                _state["log"].append(line)
+                with _state_lock:
+                    _state["containers"][container] = {
+                        "score":       score,
+                        "fsm_state":   throwaway_fsm.state(container),
+                        "last_action": f"[SHADOW] {action}",
+                        "io_stats":    store.get_io_latency_stats(container),
+                        "last_ts":     time.time(),
+                    }
+                    _state["action_counts"][action] = (
+                        _state["action_counts"].get(action, 0) + 1
+                    )
+                    _state["log"].append(line)
+        else:
+            # Default: run BOTH real and shadow paths; log all; detect divergence
+            both = _reconcile_both(store, fsm)
+            real_decisions   = both["real"]
+            shadow_decisions = both["shadow"]
+
+            # Execute and log real path + post-action FSM transitions
+            real_by = {}
+            for decision in real_decisions:
+                result = execute(decision)
+                _log_decision(decision, result)
+                real_by[decision["container"]] = decision
+
+                action  = decision["action"]
+                cname   = decision["container"]
+                if action == "checkpoint_and_restart":
+                    if result.get("success"):
+                        fsm.apply(cname, "recover")
+                    else:
+                        fsm.apply(cname, "degrade")
+
+            # Execute (no-op) and log shadow path
+            shadow_by = {}
+            for decision in shadow_decisions:
+                result = execute(decision)
+                _log_decision(decision, result)
+                shadow_by[decision["container"]] = decision
+
+            # Build display lines with divergence annotation
+            for container, score in scores.items():
+                r_decision = real_by.get(container)
+                s_decision = shadow_by.get(container)
+                action      = r_decision["action"] if r_decision else "?"
+                shadow_action = s_decision["action"] if s_decision else "?"
+                fsm_state_now = fsm.state(container)
+
+                color  = {
+                    "escalate":               "red",
+                    "checkpoint_and_restart": "yellow",
+                    "flush_io_queue":         "cyan",
+                    "no_action":              "green",
+                }.get(action, "white")
+                line = (
+                    f"[dim]{ts}[/dim]  [magenta][REAL-F][/magenta]  "
+                    f"[bold]{container:<14}[/bold]  score=[bold]{score:.2f}[/bold]"
+                    f"  fsm={r_decision['fsm_state'] if r_decision else '?'}"
+                    f"  → [{color}]{action}[/{color}]"
+                )
+
+                diverged = shadow_action and shadow_action != action
+                if diverged:
+                    s_color = {
+                        "escalate":               "red",
+                        "checkpoint_and_restart": "yellow",
+                        "flush_io_queue":         "cyan",
+                        "no_action":              "green",
+                    }.get(shadow_action, "white")
+                    line += f"  [bold red]DIVERGE[/bold red] shadow=[{s_color}]{shadow_action}[/{s_color}]"
+                    with _state_lock:
+                        _state["divergence"] += 1
+
+                with _state_lock:
+                    _state["containers"][container] = {
+                        "score":       score,
+                        "fsm_state":   fsm_state_now,
+                        "last_action": action,
+                        "io_stats":    store.get_io_latency_stats(container),
+                        "last_ts":     time.time(),
+                    }
+                    _state["action_counts"][action] = (
+                        _state["action_counts"].get(action, 0) + 1
+                    )
+                    _state["log"].append(line)
 
 
 # ── FSM colour map ─────────────────────────────────────────────────────────────

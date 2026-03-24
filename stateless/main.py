@@ -21,7 +21,7 @@ import threading
 import time
 
 from state_store import StateStore
-from reconcile import reconcile
+from reconcile import reconcile, reconcile_both
 from actions import execute
 from trace_logger import log_decision
 
@@ -107,6 +107,9 @@ def _reconcile_loop(store: StateStore, interval: float, shadow: bool, stop_event
     """
     Main control loop: every `interval` seconds, run confidence → reconcile →
     actions → trace_logger for all containers with recorded events.
+
+    shadow=False (default): runs BOTH real and shadow paths every cycle.
+    shadow=True  (--shadow): runs ONLY the shadow path — no real actions.
     """
     cycle = 0
     while not stop_event.is_set():
@@ -116,7 +119,7 @@ def _reconcile_loop(store: StateStore, interval: float, shadow: bool, stop_event
 
         cycle += 1
         print(f"\n{'─'*50}", flush=True)
-        print(f"[main] reconcile cycle #{cycle}  (shadow={shadow})", flush=True)
+        print(f"[main] reconcile cycle #{cycle}  (shadow_only={shadow})", flush=True)
 
         summary = store.summary()
         if not summary:
@@ -125,27 +128,45 @@ def _reconcile_loop(store: StateStore, interval: float, shadow: bool, stop_event
 
         print(f"[main] state snapshot: {summary}", flush=True)
 
-        # Real path
-        decisions = reconcile(store, shadow=False)
+        if shadow:
+            # Shadow-only mode: compute decisions but never execute real actions
+            print("--- Shadow-only path ---", flush=True)
+            decisions = reconcile(store, shadow=True)
+            for decision in decisions:
+                result = execute(decision)   # execute() skips action for shadow mode
+                log_decision(decision, result)
+            print(f"[main] cycle #{cycle} complete (shadow-only). Traces → traces.jsonl", flush=True)
+        else:
+            # Default: run BOTH real and shadow paths every cycle
+            both = reconcile_both(store)
 
-        for decision in decisions:
-            if decision["action"] == "no_action":
-                # Still log no_action but skip executing
+            # Execute and log real path
+            real_decisions = both["real"]
+            real_results = []
+            for decision in real_decisions:
                 result = execute(decision)
                 log_decision(decision, result)
-                continue
+                real_results.append(result)
 
-            # Execute on real path
-            result = execute(decision)
-            log_decision(decision, result)
+            # Execute (no-op) and log shadow path
+            shadow_decisions = both["shadow"]
+            for decision in shadow_decisions:
+                result = execute(decision)   # execute() skips action for shadow mode
+                log_decision(decision, result)
 
-            if not shadow:
-                # Also run shadow path for comparison
-                shadow_decision = dict(decision, mode="shadow")
-                shadow_result   = execute(shadow_decision)
-                log_decision(shadow_decision, shadow_result)
-
-        print(f"[main] cycle #{cycle} complete. Traces → traces.jsonl", flush=True)
+            # Per-cycle summary: real vs shadow side-by-side
+            print(f"\n[main] cycle #{cycle} summary — real vs shadow:", flush=True)
+            real_by   = {d["container"]: d for d in real_decisions}
+            shadow_by = {d["container"]: d for d in shadow_decisions}
+            for c in sorted(real_by):
+                r_action = real_by[c]["action"]
+                s_action = shadow_by.get(c, {}).get("action", "?")
+                diverge_flag = " *** DIVERGENCE ***" if r_action != s_action else ""
+                print(
+                    f"  container={c}  [REAL]={r_action}  [SHADOW]={s_action}{diverge_flag}",
+                    flush=True,
+                )
+            print(f"[main] cycle #{cycle} complete. Traces → traces.jsonl", flush=True)
 
 
 # ---------------------------------------------------------------------------

@@ -26,7 +26,7 @@ import time
 
 from state_store import StatefulStateStore
 from fsm import ContainerFSM
-from reconcile import reconcile
+from reconcile import reconcile, reconcile_both
 from actions import execute
 from trace_logger import log_decision
 
@@ -172,15 +172,26 @@ def _reconcile_loop(store: StatefulStateStore, fsm: ContainerFSM,
         print(f"[main-f] state snapshot: {summary}", flush=True)
         print(f"[main-f] FSM snapshot:   {fsm.snapshot()}", flush=True)
 
-        # ── Real path (or shadow-only path) ───────────────────────────────────
-        decisions = reconcile(store, fsm, shadow=shadow)
+        if shadow:
+            # ── Shadow-only mode: compute decisions, never fire real actions ──
+            print("--- Shadow-only path ---", flush=True)
+            decisions = reconcile(store, ContainerFSM(), shadow=True)
+            for decision in decisions:
+                result = execute(decision)   # execute() skips action for shadow mode
+                log_decision(decision, result)
+        else:
+            # ── Default: run BOTH real and shadow paths every cycle ────────────
+            both = reconcile_both(store, fsm)
+            real_decisions   = both["real"]
+            shadow_decisions = both["shadow"]
 
-        for decision in decisions:
-            result = execute(decision)
-            log_decision(decision, result)
+            # Execute and log real path; apply post-action FSM transitions
+            real_results = []
+            for decision in real_decisions:
+                result = execute(decision)
+                log_decision(decision, result)
+                real_results.append(result)
 
-            # Post-action FSM transitions (real path only)
-            if not shadow:
                 cname  = decision["container"]
                 action = decision["action"]
                 if action == "checkpoint_and_restart":
@@ -192,17 +203,28 @@ def _reconcile_loop(store: StatefulStateStore, fsm: ContainerFSM,
                     else:
                         fsm.apply(cname, "degrade")   # repair failed → back to Degraded
 
-        # ── Shadow divergence logging (when running in real mode) ─────────────
-        if not shadow:
-            shadow_decisions = reconcile(store, ContainerFSM(), shadow=True)
+            # Execute (no-op) and log shadow path
+            for decision in shadow_decisions:
+                result = execute(decision)   # no-op in shadow mode
+                log_decision(decision, result)
+
+            # ── Divergence detection ──────────────────────────────────────────
+            real_by   = {d["container"]: d for d in real_decisions}
             shadow_by = {d["container"]: d for d in shadow_decisions}
-            real_by   = {d["container"]: d for d in decisions}
-            diverged  = [
-                c for c in real_by
-                if shadow_by.get(c, {}).get("action") != real_by[c]["action"]
-            ]
-            if diverged:
-                print(f"[main-f] DIVERGENCE detected for: {diverged}", flush=True)
+            print(f"\n[main-f] cycle #{cycle} summary — real vs shadow:", flush=True)
+            for c in sorted(real_by):
+                r_action = real_by[c]["action"]
+                s_action = shadow_by.get(c, {}).get("action", "?")
+                if r_action != s_action:
+                    print(
+                        f"[DIVERGENCE] container={c} real={r_action} shadow={s_action}",
+                        flush=True,
+                    )
+                else:
+                    print(
+                        f"  container={c}  [REAL-F]={r_action}  [SHADOW-F]={s_action}",
+                        flush=True,
+                    )
 
         print(f"[main-f] cycle #{cycle} complete — traces → stateful/traces.jsonl",
               flush=True)

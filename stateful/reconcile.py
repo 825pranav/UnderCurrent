@@ -222,6 +222,23 @@ def reconcile(state_store, fsm: ContainerFSM, shadow: bool = False) -> list:
     return decisions
 
 
+def reconcile_both(state_store, fsm: ContainerFSM) -> dict:
+    """
+    Run both real and shadow paths and return both sets of decisions.
+
+    Real path  — uses the live `fsm` (mutated in-place as normal).
+    Shadow path — uses a FRESH throwaway ContainerFSM() so the live FSM is
+                  never touched by the shadow computation.
+
+    Returns {"real": [...], "shadow": [...]}.
+    """
+    print("--- Real path ---", flush=True)
+    real = reconcile(state_store, fsm, shadow=False)
+    print("--- Shadow path (throwaway FSM) ---", flush=True)
+    shadow = reconcile(state_store, ContainerFSM(), shadow=True)
+    return {"real": real, "shadow": shadow}
+
+
 # --- Self-test ---
 if __name__ == "__main__":
     from state_store import StatefulStateStore

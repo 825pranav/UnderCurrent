@@ -6,56 +6,54 @@
 
 ## How it works
 
+Every reconcile cycle runs **two parallel paths**:
+
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        UnderCurrent                             │
-│                                                                 │
-│  Kernel events                                                  │
-│  (eBPF / simulated)                                             │
-│        │                                                        │
-│        ▼                                                        │
-│  ┌──────────────┐     ┌──────────────┐     ┌────────────────┐  │
-│  │ EventListener│────▶│  StateStore  │────▶│  Confidence    │  │
-│  │  (S1–S2)     │     │  60s window  │     │  Scorer (S4)   │  │
-│  └──────────────┘     └──────────────┘     └───────┬────────┘  │
-│                                                    │           │
-│                                              score (0.0–1.0)   │
-│                                                    │           │
-│                                                    ▼           │
-│                                          ┌─────────────────┐   │
-│                                          │   Reconcile     │   │
-│                                          │  Decision DAG   │   │
-│                                          │     (S5)        │   │
-│                                          └────────┬────────┘   │
-│                                                   │            │
-│                              ┌────────────────────┤            │
-│                              │                    │            │
-│                         [real path]         [shadow path]      │
-│                              │                    │            │
-│                              ▼                    ▼            │
-│                       ┌────────────┐      ┌────────────────┐   │
-│                       │  Actions   │      │  Shadow log    │   │
-│                       │  (S6)      │      │  (dry-run)     │   │
-│                       └─────┬──────┘      └───────┬────────┘   │
-│                             │                     │            │
-│                             └──────────┬──────────┘            │
-│                                        ▼                       │
-│                                ┌──────────────┐                │
-│                                │ TraceLogger  │                │
-│                                │ traces.jsonl │                │
-│                                └──────────────┘                │
-└─────────────────────────────────────────────────────────────────┘
+Kernel events (eBPF / simulated)
+        │
+        ▼
+  EventListener ──▶ StateStore (60s window) ──▶ Confidence Scorer
+                                                       │
+                                                 score (0.0–1.0)
+                                                       │
+                                                       ▼
+                                               Reconcile / Decision DAG
+                                              /                         \
+                                        [real path]               [shadow path]
+                                             │                         │
+                                         Actions                  dry-run log
+                                      (execute)                  (skipped)
+                                             └────────────┬────────────┘
+                                                          ▼
+                                                  TraceLogger
+                                              traces.jsonl
+                                         (both real + shadow entries)
 ```
 
-### Decision logic
+- **Real path** — decisions are computed AND executed; written to `traces.jsonl` with `"mode": "real"`
+- **Shadow path** — decisions are computed but never executed; written to `traces.jsonl` with `"mode": "shadow"`
+- After each cycle a side-by-side summary is printed; any difference between real and shadow is flagged as `*** DIVERGENCE ***`
 
-| Confidence score | Action taken |
+### Stateless decision logic
+
+| Confidence score | Action |
 |---|---|
-| `< 0.80` | no action |
-| `0.80 – 0.94` | `docker restart <container>` |
-| `≥ 0.95` | reschedule (simulated) |
+| `< 0.80` | `no_action` |
+| `0.80 – 0.94` | `restart` (`docker restart <container>`) |
+| `≥ 0.95` | `reschedule` (simulated) |
 
-Every decision — real or shadow — is appended to `stateless/traces.jsonl` with a human-readable `why` field for explainability.
+### Stateful decision logic (FSM-gated)
+
+| Confidence score | Raw action | FSM gate |
+|---|---|---|
+| `< 0.50` | `no_action` | — |
+| `0.50 – 0.79` | `flush_io_queue` | reversible, always allowed |
+| `0.80 – 0.94` | `checkpoint_and_restart` | only from `Audited` state |
+| `≥ 0.95` | `escalate` | only from `Degraded/Audited/Repairing` |
+
+FSM lifecycle: `Healthy → Degraded → Audited → Repairing → Recovered → Healthy`
+
+The shadow path uses a **fresh FSM** each cycle, so it diverges from the real FSM over time — this divergence is a tracked research metric (`[DIVERGENCE]` log lines).
 
 ---
 
@@ -63,7 +61,7 @@ Every decision — real or shadow — is appended to `stateless/traces.jsonl` wi
 
 ```
 UnderCurrent/
-├── stateless/              ← autonomic control plane (this project)
+├── stateless/              ← stateless control plane (Type S)
 │   ├── main.py             S8  orchestrator — wires the full pipeline
 │   ├── event_listener.py   S1  eBPF kernel event capture
 │   ├── state_store.py      S3  60s sliding-window failure tracker
@@ -71,23 +69,25 @@ UnderCurrent/
 │   ├── reconcile.py        S5  decision engine + shadow controller
 │   ├── actions.py          S6  action executor (restart / reschedule)
 │   ├── trace_logger.py     S7  append-only JSON-line audit log
+│   ├── dashboard.py            Rich terminal live dashboard
+│   ├── streamlit_dashboard.py  Streamlit web dashboard
 │   └── traces.jsonl             auto-created at runtime
-├── stateful/               ← partner module (add your files here)
-├── shared/                 ← shared utilities (cross-module helpers)
+├── stateful/               ← stateful FSM-gated control plane (Type F)
+│   ├── main.py             F8  orchestrator
+│   ├── event_listener.py   F1  eBPF probes (blk_io, vfs, mount)
+│   ├── state_store.py      F3  stateful sliding-window store
+│   ├── confidence.py       F4  I/O-aware risk scorer
+│   ├── fsm.py              F5a ContainerFSM (Healthy→Degraded→…→Healthy)
+│   ├── reconcile.py        F5b FSM-gated decision engine + shadow controller
+│   ├── actions.py          F6  action executor (flush / checkpoint / escalate)
+│   ├── trace_logger.py     F7  append-only JSON-line audit log
+│   ├── dashboard.py            Rich terminal live dashboard
+│   ├── streamlit_dashboard.py  Streamlit web dashboard
+│   └── traces.jsonl             auto-created at runtime
+├── shared/
+│   └── trace_schema.py         versioned trace schema contract (v1.1.0)
 └── README.md
 ```
-
----
-
-## Contributing — Stateful module
-
-The `stateful/` folder is reserved for the stateful side of the control plane (developed separately).
-
-To contribute:
-1. Clone the repo: `git clone https://github.com/825pranav/UnderCurrent.git`
-2. Add your files inside `stateful/`
-3. If your code has pip dependencies, add them to `requirements.txt` under a `# STATEFUL` section
-4. Open a PR or push directly to `main`
 
 ---
 
@@ -97,19 +97,33 @@ To contribute:
 
 ```bash
 git clone https://github.com/825pranav/UnderCurrent.git
-cd UnderCurrent/stateless
-python3 main.py
+cd UnderCurrent
 ```
 
-This generates synthetic container events and runs the full pipeline locally. No extra dependencies needed.
-
-**Options:**
-
+**Stateless track:**
 ```bash
-python3 main.py --interval 10   # reconcile every 10s (default: 5s)
-python3 main.py --rate 2        # one synthetic event every ~2s (default: 1.5s)
-python3 main.py --shadow        # log decisions only, skip real actions
+cd stateless
+python3 main.py                  # both real + shadow paths every cycle
+python3 main.py --shadow         # shadow-only (dry-run, no actions fired)
+python3 main.py --interval 10    # reconcile every 10s (default: 5s)
+python3 main.py --rate 2         # one synthetic event every ~2s (default: 1.5s)
 ```
+
+**Stateful track:**
+```bash
+cd stateful
+python3 main.py                  # both real + shadow paths + divergence tracking
+python3 main.py --shadow         # shadow-only (uses throwaway FSM)
+python3 main.py --interval 10
+```
+
+**Read the audit log:**
+```bash
+cat stateless/traces.jsonl | python3 -m json.tool | head -60
+cat stateful/traces.jsonl  | python3 -m json.tool | head -60
+```
+
+---
 
 ---
 

@@ -176,18 +176,19 @@ def _decide(container: str, score: float, failures: list, fsm: ContainerFSM) -> 
 
     return {
         # Base fields (compatible with stateless/reconcile.py decision dict)
-        "container":      container,
-        "score":          score,
-        "action":         action,
-        "reason":         reason,
-        "timestamp":      time.time(),
+        "container":       container,
+        "score":           score,
+        "action":          action,
+        "reason":          reason,
+        "timestamp":       time.time(),
         # Stateful extension fields
-        "fsm_state":      fsm_state_before,
-        "fsm_transition": fsm_transition,
-        "reversibility":  REVERSIBILITY.get(action, "unknown"),
-        "kernel_signals": signals,
-        "dag_pattern":    dag_pattern,
-        "blocked_reason": blocked_reason,
+        "fsm_state":       fsm_state_before,
+        "fsm_state_after": fsm.state(container),   # state after this cycle's transitions
+        "fsm_transition":  fsm_transition,
+        "reversibility":   REVERSIBILITY.get(action, "unknown"),
+        "kernel_signals":  signals,
+        "dag_pattern":     dag_pattern,
+        "blocked_reason":  blocked_reason,
     }
 
 

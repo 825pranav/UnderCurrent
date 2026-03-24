@@ -113,13 +113,21 @@ df_f = df[
     df["container"].isin(sel_containers) &
     df["mode"].isin(sel_modes)
 ]
-real_df = df_f[df_f["mode"] == "real"]
+real_df   = df_f[df_f["mode"] == "real"]
+shadow_df = df_f[df_f["mode"] == "shadow"]
+# For display purposes: use real if available, fall back to shadow
+active_df = real_df if not real_df.empty else shadow_df
+active_label = "" if not real_df.empty else " (shadow)"
 
 # ── KPI row — split by track ──────────────────────────────────────────────────
-s_real = real_df[real_df["node_type"] == "S"]
-f_real = real_df[real_df["node_type"] == "F"]
+s_real = active_df[active_df["node_type"] == "S"]
+f_real = active_df[active_df["node_type"] == "F"]
 
-st.markdown("#### Stateless (S) — Type S track")
+# Shadow-mode banner
+if real_df.empty and not shadow_df.empty:
+    st.info("Running in **shadow mode** — no real actions fired. Showing shadow decisions.", icon="👻")
+
+st.markdown(f"#### Stateless (S) — Type S track{active_label}")
 c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric("Decisions",   len(s_real))
 c2.metric("Restarts",    int((s_real["action"] == "restart").sum()))
@@ -127,7 +135,7 @@ c3.metric("Reschedules", int((s_real["action"] == "reschedule").sum()))
 c4.metric("No-action",   int((s_real["action"] == "no_action").sum()))
 c5.metric("Peak Score",  f"{s_real['score'].max():.2f}" if not s_real.empty else "—")
 
-st.markdown("#### Stateful (F) — Type F track")
+st.markdown(f"#### Stateful (F) — Type F track{active_label}")
 c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric("Decisions",        len(f_real))
 c2.metric("Flush IO",         int((f_real["action"] == "flush_io_queue").sum()))
@@ -141,7 +149,7 @@ st.divider()
 st.markdown('<div class="section-title">Confidence Score Over Time — Both Tracks</div>',
             unsafe_allow_html=True)
 
-timeline = real_df.sort_values("trace_time")
+timeline = active_df.sort_values("trace_time")
 if not timeline.empty:
     fig = px.line(
         timeline, x="trace_time", y="score",
@@ -174,7 +182,7 @@ col_s, col_f = st.columns(2)
 with col_s:
     st.markdown('<div class="section-title">Action Distribution — Stateless (S)</div>',
                 unsafe_allow_html=True)
-    s_counts = s_real["action"].value_counts().reset_index()
+    s_counts = (s_real if not s_real.empty else shadow_df[shadow_df["node_type"] == "S"])["action"].value_counts().reset_index()
     s_counts.columns = ["action", "count"]
     color_map_s = {"no_action": "#4CAF50", "restart": "#FFC107", "reschedule": "#F44336"}
     if not s_counts.empty:
@@ -189,7 +197,7 @@ with col_s:
 with col_f:
     st.markdown('<div class="section-title">Action Distribution — Stateful (F)</div>',
                 unsafe_allow_html=True)
-    f_counts = f_real["action"].value_counts().reset_index()
+    f_counts = (f_real if not f_real.empty else shadow_df[shadow_df["node_type"] == "F"])["action"].value_counts().reset_index()
     f_counts.columns = ["action", "count"]
     color_map_f = {
         "no_action":             "#4CAF50",
@@ -209,12 +217,13 @@ with col_f:
 st.divider()
 
 # ── Row 3: FSM state panel (stateful only) ────────────────────────────────────
-if "fsm_state" in df_f.columns and not f_real.empty:
+if "fsm_state" in df_f.columns and not (f_real if not f_real.empty else shadow_df[shadow_df["node_type"] == "F"]).empty:
     st.markdown('<div class="section-title">FSM State — Current per Container (Stateful)</div>',
                 unsafe_allow_html=True)
 
+    _f_for_fsm = f_real if not f_real.empty else shadow_df[shadow_df["node_type"] == "F"]
     fsm_latest = (
-        f_real.dropna(subset=["fsm_state"])
+        _f_for_fsm.dropna(subset=["fsm_state"])
               .sort_values("trace_time")
               .groupby("container")
               .last()

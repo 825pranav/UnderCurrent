@@ -35,7 +35,7 @@ def _load_jsonl(path: str) -> list:
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="UnderCurrent",
-    page_icon="⚡",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -76,7 +76,7 @@ def load_traces() -> pd.DataFrame:
 
 
 # ── Header ────────────────────────────────────────────────────────────────────
-st.markdown("## ⚡ UnderCurrent — Risk-Aware Autonomic Control Plane")
+st.markdown("## UnderCurrent — Risk-Aware Autonomic Control Plane")
 st.caption("Live decision audit log · auto-refreshes every 4 seconds")
 st.divider()
 

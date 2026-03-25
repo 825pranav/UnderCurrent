@@ -97,7 +97,7 @@ def load_metrics() -> dict:
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="UnderCurrent — Unified",
-    page_icon="⚡",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -149,7 +149,7 @@ def load_traces() -> pd.DataFrame:
 
 
 # ── Header ────────────────────────────────────────────────────────────────────
-st.markdown("## ⚡ UnderCurrent — Unified Control Plane Dashboard")
+st.markdown("## UnderCurrent — Unified Control Plane Dashboard")
 st.caption("Stateless (Type S) + Stateful (Type F) · auto-refreshes every 4 seconds")
 
 col_s, col_f = st.columns(2)

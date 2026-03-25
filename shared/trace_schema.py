@@ -28,23 +28,30 @@ BASE_FIELDS = [
     "action_timestamp",     # float  — when action.execute() was called
 ]
 
-# ── Stateful extension fields (present in Type-F traces only) ─────────────────
-# Absent in stateless traces.  Any consumer that reads a mixed trace file must
-# handle missing keys gracefully (e.g. dict.get("fsm_state") → None is fine).
+# ── Common extension fields — present in BOTH S and F traces (added 1.2.0) ────
+# node_type, kernel_signals, and dag_pattern are now produced by both
+# stateless/reconcile.py and stateful/reconcile.py.
+COMMON_EXTENSION_FIELDS = [
+    "node_type",        # str       — "S" for stateless traces, "F" for stateful traces
+    "kernel_signals",   # list[str] — kernel observation names that triggered the decision
+    "dag_pattern",      # str       — matched DAG fault-pattern name
+]
+
+# ── Stateful-only extension fields (absent in stateless traces) ────────────────
+# Any consumer reading a mixed trace file must handle missing keys gracefully.
 STATEFUL_FIELDS = [
-    "node_type",        # str       — always "F" for stateful traces
     "fsm_state",        # str       — FSM state of the container BEFORE this decision
     "fsm_transition",   # str|None  — transition applied this cycle, e.g. "Healthy→Degraded"
     "reversibility",    # str       — "reversible" | "conditional" | "irreversible"
-    "kernel_signals",   # list[str] — kernel observation names that triggered the decision
-    "dag_pattern",      # str       — matched DAG fault-pattern name
     "blocked_reason",   # str|None  — why a higher-severity action was blocked (if any)
 ]
 
-ALL_FIELDS = BASE_FIELDS + STATEFUL_FIELDS
+ALL_FIELDS = BASE_FIELDS + COMMON_EXTENSION_FIELDS + STATEFUL_FIELDS
 
-SCHEMA_VERSION = "1.1.0"
+SCHEMA_VERSION = "1.2.0"
 # Version semantics:
 #   major — incompatible change (rename / remove field)  → requires Pranav sign-off
-#   minor — new optional field added to STATEFUL_FIELDS  → backward compatible
+#   minor — new field group added                        → backward compatible
 #   patch — documentation / comment update only
+# 1.2.0 — node_type, kernel_signals, dag_pattern promoted to COMMON_EXTENSION_FIELDS
+#          (now present in both S and F traces)

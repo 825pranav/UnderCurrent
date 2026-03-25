@@ -96,9 +96,63 @@ int trace_vfs_read_ret(struct pt_regs *ctx) {
     f_events.perf_submit(ctx, &e, sizeof(e));
     return 0;
 }
+
+// ── Volume mount tracking (tracepoints) ───────────────────────────────────────
+// type 3 = volume_mount_restored (successful mount syscall)
+// type 4 = volume_mount_lost     (umount syscall initiated)
+
+struct vol_event_t {
+    u32  pid;
+    u32  tgid;
+    char comm[TASK_COMM_LEN];
+    u32  type;    // 3=volume_mount_restored  4=volume_mount_lost
+};
+
+BPF_PERF_OUTPUT(vol_events);
+// pending_mount_pids: tag PIDs that entered sys_enter_mount so sys_exit_mount
+// can correlate the return code to the right process.
+BPF_HASH(pending_mount_pids, u32, u8);
+
+TRACEPOINT_PROBE(syscalls, sys_enter_mount) {
+    u32 pid = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
+    u8  val = 1;
+    pending_mount_pids.update(&pid, &val);
+    return 0;
+}
+
+// Emit volume_mount_restored only when mount() returns successfully (ret == 0).
+// Failed mount attempts are silently dropped.
+TRACEPOINT_PROBE(syscalls, sys_exit_mount) {
+    u32 pid = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
+    u8 *val = pending_mount_pids.lookup(&pid);
+    if (!val) return 0;
+    pending_mount_pids.delete(&pid);
+    if (args->ret != 0) return 0;
+
+    struct vol_event_t e = {};
+    e.pid  = pid;
+    e.tgid = bpf_get_current_pid_tgid() >> 32;
+    e.type = 3;
+    bpf_get_current_comm(&e.comm, sizeof(e.comm));
+    vol_events.perf_submit(args, &e, sizeof(e));
+    return 0;
+}
+
+// Emit volume_mount_lost at umount entry — the mount is logically lost the
+// moment the kernel begins the unmount sequence.
+TRACEPOINT_PROBE(syscalls, sys_enter_umount) {
+    struct vol_event_t e = {};
+    e.pid  = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
+    e.tgid = bpf_get_current_pid_tgid() >> 32;
+    e.type = 4;
+    bpf_get_current_comm(&e.comm, sizeof(e.comm));
+    vol_events.perf_submit(args, &e, sizeof(e));
+    return 0;
+}
 """
 
-_ETYPE = {0: "blk_io_latency", 1: "vfs_write_error", 2: "vfs_read_error"}
+_ETYPE     = {0: "blk_io_latency", 1: "vfs_write_error", 2: "vfs_read_error"}
+_VOL_ETYPE = {3: "volume_mount_restored", 4: "volume_mount_lost"}
 
 
 class EventListener:
@@ -129,8 +183,24 @@ class EventListener:
         }
         print(json.dumps(record), flush=True)
 
+    def handle_vol_event(self, cpu, data, size):
+        ev    = self.b["vol_events"].event(data)
+        etype = _VOL_ETYPE.get(ev.type, "unknown")
+        record = {
+            "container":   ev.comm.decode("utf-8", errors="replace"),
+            "pid":         ev.pid,
+            "event":       etype,
+            "time":        time.time(),
+            # volume_path not available without bpf_probe_read_user_str (Linux 5.5+);
+            # left empty here — simulation mode populates it with a real path.
+            "volume_path": "",
+            "node_type":   "F",
+        }
+        print(json.dumps(record), flush=True)
+
     def listen(self):
         self.b["f_events"].open_perf_buffer(self.handle_event)
+        self.b["vol_events"].open_perf_buffer(self.handle_vol_event)
         while True:
             try:
                 self.b.perf_buffer_poll()

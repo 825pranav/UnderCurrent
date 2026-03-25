@@ -15,6 +15,7 @@
 
 import argparse
 import json
+import os
 import random
 import sys
 import threading
@@ -27,6 +28,7 @@ from trace_logger import log_decision
 
 # --- Config ---
 WINDOW_SECONDS = 60
+DIVERGENCE_LOG = os.path.join(os.path.dirname(__file__), "divergence_log.jsonl")
 BANNER = """
 ╔══════════════════════════════════════════════╗
 ║        UnderCurrent  Control Plane           ║
@@ -161,11 +163,27 @@ def _reconcile_loop(store: StateStore, interval: float, shadow: bool, stop_event
             for c in sorted(real_by):
                 r_action = real_by[c]["action"]
                 s_action = shadow_by.get(c, {}).get("action", "?")
-                diverge_flag = " *** DIVERGENCE ***" if r_action != s_action else ""
-                print(
-                    f"  container={c}  [REAL]={r_action}  [SHADOW]={s_action}{diverge_flag}",
-                    flush=True,
-                )
+                if r_action != s_action:
+                    _div = {
+                        "time":          time.time(),
+                        "cycle":         cycle,
+                        "container":     c,
+                        "real_action":   r_action,
+                        "shadow_action": s_action,
+                        "track":         "S",
+                    }
+                    with open(DIVERGENCE_LOG, "a") as _df:
+                        _df.write(json.dumps(_div) + "\n")
+                    print(
+                        f"  container={c}  [REAL]={r_action}  [SHADOW]={s_action}"
+                        f"  *** DIVERGENCE ***",
+                        flush=True,
+                    )
+                else:
+                    print(
+                        f"  container={c}  [REAL]={r_action}  [SHADOW]={s_action}",
+                        flush=True,
+                    )
             print(f"[main] cycle #{cycle} complete. Traces → traces.jsonl", flush=True)
 
 

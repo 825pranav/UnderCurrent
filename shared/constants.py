@@ -27,4 +27,4 @@ DEGRADE_THRESHOLD    = 0.50   # stateful only — FSM degrade trigger
 WINDOW_SECONDS = 60           # both tracks use 60s event window
 
 # ── Schema ────────────────────────────────────────────────────────────────────
-SCHEMA_VERSION = "1.1.0"      # keep in sync with shared/trace_schema.py
+SCHEMA_VERSION = "1.2.0"      # keep in sync with shared/trace_schema.py

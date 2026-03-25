@@ -14,8 +14,8 @@
 #     executed, stdout, stderr, decision_timestamp, action_timestamp
 #
 #   Stateful extension fields (additive):
-#     node_type, fsm_state, fsm_transition, reversibility,
-#     kernel_signals, dag_pattern, blocked_reason
+#     node_type, fsm_state, fsm_state_after, fsm_transition, reversibility,
+#     kernel_signals, dag_pattern, blocked_reason, wasm_blocked, wasm_reason
 #
 # Trace file: stateful/traces.jsonl  (separate from stateless/traces.jsonl)
 # See shared/trace_schema.py for the full field catalogue.
@@ -63,6 +63,7 @@ def log_decision(decision: dict, action_result: dict) -> dict:
         # ── Stateful extension fields ─────────────────────────────────────────
         "node_type":          "F",
         "fsm_state":          decision.get("fsm_state"),
+        "fsm_state_after":    decision.get("fsm_state_after"),
         "fsm_transition":     decision.get("fsm_transition"),   # e.g. "Healthy→Degraded"
         "reversibility":      (
             action_result.get("reversibility")
@@ -71,6 +72,9 @@ def log_decision(decision: dict, action_result: dict) -> dict:
         "kernel_signals":     decision.get("kernel_signals", []),
         "dag_pattern":        decision.get("dag_pattern"),
         "blocked_reason":     decision.get("blocked_reason"),
+        # ── WASM sandbox fields — Unsafe-action Suppression Rate metric ──────
+        "wasm_blocked":       action_result.get("wasm_blocked", False),
+        "wasm_reason":        action_result.get("wasm_reason"),
     }
 
     with open(TRACE_FILE, "a") as f:

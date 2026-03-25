@@ -27,6 +27,12 @@ plotly>=5.0.0
 #
 #   Then run: sudo python3 stateless/main.py --real
 #
+# ── WASM POLICY SANDBOX (stateful/wasm_executor.py) ──────────────────────────
+wasmtime>=22.0.0
+#   pip install wasmtime
+#   Required for stateful/wasm_executor.py (WASM policy sandbox).
+#   If not installed, actions.py falls back silently — pipeline still runs.
+#
 # ── DOCKER ACTIONS (optional) ────────────────────────────────────────────────
 # Requires Docker daemon running on the host for `docker restart` to work.
 # Without Docker, restart actions will fail gracefully (logged, not fatal).

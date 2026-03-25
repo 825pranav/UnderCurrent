@@ -18,6 +18,15 @@
 import subprocess
 import time
 
+# ── WASM policy sandbox (optional — falls back gracefully if wasmtime missing) ─
+try:
+    from wasm_executor import policy_check as _wasm_policy_check
+    _WASM_AVAILABLE = True
+except ImportError:
+    _WASM_AVAILABLE = False
+    def _wasm_policy_check(action, fsm_state, score):  # noqa: E302
+        return True, "wasmtime not installed — WASM sandbox bypassed"
+
 # ── Reversibility catalogue — imported by reconcile.py for gate enforcement ───
 REVERSIBILITY: dict = {
     "no_action":              "reversible",
@@ -111,6 +120,11 @@ def execute(decision: dict) -> dict:
     """
     Dispatch a stateful decision dict to the correct action function.
     Shadow-mode decisions are logged but never executed.
+
+    For real-mode decisions, the WASM sandbox policy_check() is called first.
+    If the sandbox rejects the action (FSM-sequence violation or score below
+    threshold), execution is suppressed and wasm_blocked=True is recorded.
+    This is the second, independent gate described in the research paper.
     """
     container = decision["container"]
     action    = decision.get("action", "no_action")
@@ -127,7 +141,24 @@ def execute(decision: dict) -> dict:
             "timestamp":     time.time(),
             "mode":          "shadow",
             "reversibility": REVERSIBILITY.get(action, "unknown"),
+            "wasm_blocked":  False,
+            "wasm_reason":   None,
         }
+
+    # ── WASM sandbox check (real mode only) ───────────────────────────────────
+    # Use fsm_state_after (state after Python-level FSM transitions) so the
+    # WASM module sees the same state the Python gate used for its decision.
+    fsm_state = decision.get("fsm_state_after", decision.get("fsm_state", "Healthy"))
+    score     = float(decision.get("score", 0.0))
+    wasm_ok, wasm_reason = _wasm_policy_check(action, fsm_state, score)
+
+    if not wasm_ok:
+        print(f"[actions-f][WASM-BLOCKED] {container}: {wasm_reason}")
+        result = _result(container, "no_action", False, stderr=wasm_reason)
+        result["mode"]         = "real"
+        result["wasm_blocked"] = True
+        result["wasm_reason"]  = wasm_reason
+        return result
 
     dispatch = {
         "no_action":              no_action,
@@ -137,33 +168,59 @@ def execute(decision: dict) -> dict:
     }
     fn = dispatch.get(action, no_action)
     result = fn(container)
-    result["mode"] = "real"
+    result["mode"]         = "real"
+    result["wasm_blocked"] = False
+    result["wasm_reason"]  = wasm_reason   # "WASM sandbox: policy satisfied"
     return result
 
 
 # --- Self-test ---
 if __name__ == "__main__":
-    # no_action
-    d = execute({"container": "postgres", "action": "no_action", "mode": "real"})
+    # Decision dicts must include fsm_state_after so the WASM sandbox
+    # receives the correct post-transition FSM state (as reconcile.py provides).
+
+    # no_action — always allowed (any FSM state)
+    d = execute({"container": "postgres", "action": "no_action",
+                 "mode": "real", "fsm_state_after": "Healthy", "score": 0.0})
     assert d["success"] is True and d["action"] == "no_action", d
+    assert d["wasm_blocked"] is False, d
 
-    # flush_io_queue
-    d = execute({"container": "postgres", "action": "flush_io_queue", "mode": "real"})
+    # flush_io_queue — allowed from Degraded with score >= 0.50
+    d = execute({"container": "postgres", "action": "flush_io_queue",
+                 "mode": "real", "fsm_state_after": "Degraded", "score": 0.65})
     assert d["success"] is True and "SIMULATED" in d["stdout"], d
+    assert d["wasm_blocked"] is False, d
 
-    # escalate
-    d = execute({"container": "etcd", "action": "escalate", "mode": "real"})
+    # flush_io_queue — WASM blocks it from Healthy (no degradation present)
+    d = execute({"container": "postgres", "action": "flush_io_queue",
+                 "mode": "real", "fsm_state_after": "Healthy", "score": 0.65})
+    assert d["wasm_blocked"] is True, d
+    print(f"  flush/Healthy: WASM-blocked as expected ✓")
+
+    # escalate — allowed from Degraded with score >= 0.95
+    d = execute({"container": "etcd", "action": "escalate",
+                 "mode": "real", "fsm_state_after": "Degraded", "score": 0.97})
     assert d["success"] is True and "SIMULATED" in d["stdout"], d
+    assert d["wasm_blocked"] is False, d
 
-    # shadow — must not execute
-    d = execute({"container": "postgres", "action": "checkpoint_and_restart", "mode": "shadow"})
+    # shadow — must not execute; WASM check is skipped in shadow mode
+    d = execute({"container": "postgres", "action": "checkpoint_and_restart",
+                 "mode": "shadow", "fsm_state_after": "Audited", "score": 0.85})
     assert d["mode"] == "shadow" and d["success"] is None, d
     assert "SHADOW" in d["stdout"], d
 
-    # checkpoint_and_restart (docker may not be present — graceful degradation)
-    d = execute({"container": "nonexistent_uc_f_test", "action": "checkpoint_and_restart", "mode": "real"})
+    # checkpoint_and_restart — allowed from Audited (docker may not be present)
+    d = execute({"container": "nonexistent_uc_f_test", "action": "checkpoint_and_restart",
+                 "mode": "real", "fsm_state_after": "Audited", "score": 0.85})
     assert d["action"] == "checkpoint_and_restart", d
+    assert d["wasm_blocked"] is False, d
     print(f"  checkpoint_and_restart: success={d['success']} stderr={d['stderr']!r}")
+
+    # checkpoint_and_restart — WASM blocks it from Degraded (must be Audited first)
+    d = execute({"container": "postgres", "action": "checkpoint_and_restart",
+                 "mode": "real", "fsm_state_after": "Degraded", "score": 0.85})
+    assert d["wasm_blocked"] is True, d
+    print(f"  checkpoint/Degraded: WASM-blocked as expected ✓")
 
     # Reversibility catalogue sanity
     assert REVERSIBILITY["flush_io_queue"]         == "reversible"

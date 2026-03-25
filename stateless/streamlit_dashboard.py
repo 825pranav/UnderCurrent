@@ -13,8 +13,24 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-TRACE_FILE = os.path.join(os.path.dirname(__file__), "traces.jsonl")
+TRACE_FILE      = os.path.join(os.path.dirname(__file__), "traces.jsonl")
+DIVERGENCE_FILE = os.path.join(os.path.dirname(__file__), "divergence_log.jsonl")
 REFRESH_INTERVAL = 4  # seconds between auto-refresh
+
+
+def _load_jsonl(path: str) -> list:
+    if not os.path.exists(path):
+        return []
+    rows = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+    return rows
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -85,7 +101,17 @@ with st.sidebar:
     all_actions = sorted(df["action"].unique().tolist())
     sel_actions = st.multiselect("Actions", all_actions, default=all_actions)
     all_modes = sorted(df["mode"].unique().tolist())
-    sel_modes = st.multiselect("Mode", all_modes, default=all_modes)
+    sel_modes = st.multiselect(
+        "Mode",
+        all_modes,
+        default=all_modes,
+        help=(
+            "Filters which trace rows are displayed — NOT a pipeline switch.\n\n"
+            "• **real** — decisions that were actually executed\n"
+            "• **shadow** — dry-run decisions (never executed)\n\n"
+            "To change pipeline mode restart main.py with `--shadow` or `--real`."
+        ),
+    )
     st.divider()
     st.caption(f"Trace file: `{TRACE_FILE}`")
     st.caption(f"Total rows: {len(df)}")
@@ -98,7 +124,7 @@ df_f = df[
 
 # ── KPI metrics ───────────────────────────────────────────────────────────────
 real_df = df_f[df_f["mode"] == "real"]
-c1, c2, c3, c4, c5 = st.columns(5)
+c1, c2, c3, c4, c5, c6 = st.columns(6)
 
 c1.metric("Total Decisions",  len(df_f))
 c2.metric("Restarts",         int((real_df["action"] == "restart").sum()))
@@ -111,6 +137,21 @@ if not real_df.empty:
     c5.metric("Peak Risk Score", f"{peak_score:.2f}", delta=peak_container, delta_color="inverse")
 else:
     c5.metric("Peak Risk Score", "—")
+
+_div_entries = _load_jsonl(DIVERGENCE_FILE)
+_real_count  = len(real_df)
+_div_rate    = f"{len(_div_entries) / _real_count:.1%}" if _real_count else "—"
+c6.metric(
+    "Divergence Rate",
+    _div_rate,
+    delta=f"{len(_div_entries)} events",
+    delta_color="off",
+    help=(
+        "Fraction of real decisions where the shadow controller chose a different action.\n\n"
+        "Shadow controller runs every cycle. When it picks a different action than the "
+        "real path, that cycle is logged to divergence_log.jsonl."
+    ),
+)
 
 st.divider()
 

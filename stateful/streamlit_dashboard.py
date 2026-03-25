@@ -21,7 +21,23 @@ import plotly.graph_objects as go
 import streamlit as st
 
 TRACE_FILE      = os.path.join(os.path.dirname(__file__), "traces.jsonl")
-REFRESH_INTERVAL = 4   # seconds
+DIVERGENCE_FILE = os.path.join(os.path.dirname(__file__), "divergence_log.jsonl")
+REFRESH_INTERVAL = 4
+
+
+def _load_jsonl(path: str) -> list:
+    if not os.path.exists(path):
+        return []
+    rows = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+    return rows   # seconds
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -116,7 +132,17 @@ with st.sidebar:
     sel_actions = st.multiselect("Actions", all_actions, default=all_actions)
 
     all_modes = sorted(df["mode"].dropna().unique().tolist())
-    sel_modes = st.multiselect("Mode", all_modes, default=all_modes)
+    sel_modes = st.multiselect(
+        "Mode",
+        all_modes,
+        default=all_modes,
+        help=(
+            "Filters which trace rows are displayed — NOT a pipeline switch.\n\n"
+            "• **real** — decisions that were actually executed\n"
+            "• **shadow** — dry-run decisions (never executed)\n\n"
+            "To change pipeline mode restart main.py with `--shadow` or `--real`."
+        ),
+    )
 
     all_fsm = sorted(df["fsm_state"].dropna().unique().tolist())
     sel_fsm = st.multiselect("FSM State", all_fsm, default=all_fsm) if all_fsm else []
@@ -136,7 +162,7 @@ if sel_fsm:
 real_df = df_f[df_f["mode"] == "real"]
 
 # ── KPI row ───────────────────────────────────────────────────────────────────
-c1, c2, c3, c4, c5, c6 = st.columns(6)
+c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
 
 c1.metric("Total Decisions",   len(df_f))
 c2.metric("Flushes",           int((real_df["action"] == "flush_io_queue").sum()))
@@ -144,10 +170,29 @@ c3.metric("Chkpt+Restarts",    int((real_df["action"] == "checkpoint_and_restart
 c4.metric("Escalations",       int((real_df["action"] == "escalate").sum()))
 c5.metric("No-Action",         int((real_df["action"] == "no_action").sum()))
 
-# Divergence count: rows where blocked_reason is not null
-diverged = df_f["blocked_reason"].notna().sum()
-c6.metric("Blocked Actions",   int(diverged),
-          help="Actions blocked by FSM gate or reversibility gate")
+# FSM/WASM gate blocks (distinct from shadow divergence)
+fsm_blocked = int(df_f["blocked_reason"].notna().sum()) if "blocked_reason" in df_f.columns else 0
+c6.metric(
+    "FSM/WASM Blocked",
+    fsm_blocked,
+    help="Actions the FSM gate or WASM sandbox downgraded/suppressed this cycle.",
+)
+
+# Shadow divergence rate from divergence_log.jsonl
+_div_entries  = _load_jsonl(DIVERGENCE_FILE)
+_real_count   = len(real_df)
+_div_rate     = f"{len(_div_entries) / _real_count:.1%}" if _real_count else "—"
+c7.metric(
+    "Divergence Rate",
+    _div_rate,
+    delta=f"{len(_div_entries)} events",
+    delta_color="off",
+    help=(
+        "Fraction of real decisions where the shadow controller chose a different action.\n\n"
+        "Shadow controller runs every cycle with a fresh FSM. Over time its FSM state "
+        "drifts from the real FSM → different actions → divergence."
+    ),
+)
 
 st.divider()
 

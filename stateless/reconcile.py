@@ -9,31 +9,58 @@ from confidence import score_all
 RESTART_THRESHOLD = 0.80        # score >= this → recommend restart
 RESCHEDULE_THRESHOLD = 0.95     # score >= this → recommend reschedule instead
 
+# ── DAG fault-pattern names (populate 'dag_pattern' in decision trace) ────────
+_PATTERN = {
+    "nominal":           "nominal — score below restart threshold",
+    "network_degraded":  "repeated network failures — restart recommended",
+    "process_failure":   "process exit or critical failure — reschedule required",
+}
 
-def _decide(container: str, score: float) -> dict:
+
+def _kernel_signals(failures: list) -> list:
+    """Extract human-readable kernel signal names from the raw failure list."""
+    signals = set()
+    for e in failures:
+        ev = e.get("event", "")
+        if ev == "process_exit":
+            signals.add("process_exit")
+        elif ev == "tcp_connect_fail":
+            signals.add("tcp_connect_fail")
+    return sorted(signals)
+
+
+def _decide(container: str, score: float, failures: list = None) -> dict:
     """
     Diagnostic DAG:
       score < RESTART_THRESHOLD      → no_action
       RESTART_THRESHOLD <= score < RESCHEDULE_THRESHOLD → restart
       score >= RESCHEDULE_THRESHOLD  → reschedule
-    Returns a decision dict.
+    Returns a decision dict with kernel_signals and dag_pattern fields.
     """
+    failures = failures or []
+    signals  = _kernel_signals(failures)
+
     if score >= RESCHEDULE_THRESHOLD:
-        action = "reschedule"
-        reason = f"score {score} >= reschedule threshold {RESCHEDULE_THRESHOLD}"
+        action      = "reschedule"
+        reason      = f"score {score} >= reschedule threshold {RESCHEDULE_THRESHOLD}"
+        dag_pattern = "process_failure"
     elif score >= RESTART_THRESHOLD:
-        action = "restart"
-        reason = f"score {score} >= restart threshold {RESTART_THRESHOLD}"
+        action      = "restart"
+        reason      = f"score {score} >= restart threshold {RESTART_THRESHOLD}"
+        dag_pattern = "network_degraded"
     else:
-        action = "no_action"
-        reason = f"score {score} below restart threshold {RESTART_THRESHOLD}"
+        action      = "no_action"
+        reason      = f"score {score} below restart threshold {RESTART_THRESHOLD}"
+        dag_pattern = "nominal"
 
     return {
-        "container": container,
-        "score": score,
-        "action": action,
-        "reason": reason,
-        "timestamp": time.time(),
+        "container":      container,
+        "score":          score,
+        "action":         action,
+        "reason":         reason,
+        "timestamp":      time.time(),
+        "kernel_signals": signals,
+        "dag_pattern":    dag_pattern,
     }
 
 
@@ -50,7 +77,8 @@ def reconcile(state_store, shadow: bool = False) -> list:
     decisions = []
 
     for container, score in scores.items():
-        decision = _decide(container, score)
+        failures = state_store.get_failures(container)
+        decision = _decide(container, score, failures)
         decision["mode"] = "shadow" if shadow else "real"
         decisions.append(decision)
 
@@ -93,11 +121,20 @@ if __name__ == "__main__":
 
     result = reconcile_both(store)
 
-    # Validate real path
+    # Validate real path actions
     real_by_name = {d["container"]: d for d in result["real"]}
     assert real_by_name["nginx"]["action"] == "reschedule", real_by_name["nginx"]
     assert real_by_name["pyapp"]["action"] == "no_action",  real_by_name["pyapp"]
     assert real_by_name["redis"]["action"] == "restart",    real_by_name["redis"]
+
+    # Validate new kernel_signals and dag_pattern fields
+    for d in real_by_name.values():
+        assert "kernel_signals" in d, f"Missing kernel_signals in {d}"
+        assert "dag_pattern"    in d, f"Missing dag_pattern in {d}"
+    assert "process_exit" in real_by_name["nginx"]["kernel_signals"]
+    assert real_by_name["nginx"]["dag_pattern"]  == "process_failure"
+    assert real_by_name["redis"]["dag_pattern"]  == "network_degraded"
+    assert real_by_name["pyapp"]["dag_pattern"]  == "nominal"
 
     # Shadow path should match real path decisions
     shadow_by_name = {d["container"]: d for d in result["shadow"]}

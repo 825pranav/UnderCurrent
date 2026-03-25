@@ -19,6 +19,7 @@
 
 import argparse
 import json
+import os
 import random
 import sys
 import threading
@@ -31,6 +32,7 @@ from actions import execute
 from trace_logger import log_decision
 
 WINDOW_SECONDS = 60
+DIVERGENCE_LOG = os.path.join(os.path.dirname(__file__), "divergence_log.jsonl")
 
 BANNER = """
 ╔══════════════════════════════════════════════════╗
@@ -107,7 +109,7 @@ def _real_events(store: StatefulStateStore, stop_event: threading.Event):
     Requires root and the bcc library.
     """
     try:
-        from event_listener import EventListener
+        from event_listener import EventListener, _VOL_ETYPE
     except ImportError as e:
         print(f"[main-f] ERROR: cannot import event_listener — {e}")
         print("[main-f] Run without --real, or install bcc (requires root).")
@@ -131,8 +133,23 @@ def _real_events(store: StatefulStateStore, stop_event: threading.Event):
             store.record(record)
             print(f"  [ebpf-f] {json.dumps(record)}", flush=True)
 
+        def handle_vol_event(self, cpu, data, size):
+            ev_raw  = self.b["vol_events"].event(data)
+            ev_type = _VOL_ETYPE.get(ev_raw.type, "unknown")
+            record  = {
+                "container":   ev_raw.comm.decode("utf-8", errors="replace"),
+                "pid":         ev_raw.pid,
+                "event":       ev_type,
+                "time":        time.time(),
+                "volume_path": "",   # not available without bpf_probe_read_user_str
+                "node_type":   "F",
+            }
+            store.record(record)
+            print(f"  [ebpf-f] {json.dumps(record)}", flush=True)
+
     listener = _FeedingListener()
     listener.b["f_events"].open_perf_buffer(listener.handle_event)
+    listener.b["vol_events"].open_perf_buffer(listener.handle_vol_event)
     while not stop_event.is_set():
         try:
             listener.b.perf_buffer_poll(timeout=200)
@@ -216,6 +233,16 @@ def _reconcile_loop(store: StatefulStateStore, fsm: ContainerFSM,
                 r_action = real_by[c]["action"]
                 s_action = shadow_by.get(c, {}).get("action", "?")
                 if r_action != s_action:
+                    _div = {
+                        "time":          time.time(),
+                        "cycle":         cycle,
+                        "container":     c,
+                        "real_action":   r_action,
+                        "shadow_action": s_action,
+                        "track":         "F",
+                    }
+                    with open(DIVERGENCE_LOG, "a") as _df:
+                        _df.write(json.dumps(_div) + "\n")
                     print(
                         f"[DIVERGENCE] container={c} real={r_action} shadow={s_action}",
                         flush=True,

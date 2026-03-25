@@ -23,9 +23,68 @@ try:
     from wasm_executor import policy_check as _wasm_policy_check
     _WASM_AVAILABLE = True
 except ImportError:
+    import warnings as _warnings
     _WASM_AVAILABLE = False
+    _warnings.warn(
+        "[WASM-FALLBACK] wasmtime is not installed. "
+        "Using Python policy fallback — FSM constraints are still enforced. "
+        "Install wasmtime (`pip install wasmtime`) for full sandbox isolation.",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+
     def _wasm_policy_check(action, fsm_state, score):  # noqa: E302
-        return True, "wasmtime not installed — WASM sandbox bypassed"
+        """
+        Python-level policy fallback mirroring the WAT module logic exactly.
+        Same FSM state checks and score thresholds as stateful/wasm/*.wat.
+        FSM encoding: Healthy=0  Degraded=1  Audited=2  Repairing=3  Recovered=4
+        """
+        _FSM_CODE = {
+            "Healthy": 0, "Degraded": 1, "Audited": 2,
+            "Repairing": 3, "Recovered": 4,
+        }
+        fsm_code = _FSM_CODE.get(fsm_state)
+        if fsm_code is None:
+            return False, f"Python fallback: unknown FSM state {fsm_state!r}"
+
+        if action == "no_action":
+            return True, "Python fallback: no_action always allowed"
+
+        if action == "flush_io_queue":
+            if score < 0.50:
+                return False, f"Python fallback: flush_io_queue blocked — score {score:.3f} < 0.50"
+            if fsm_code in (1, 2):   # Degraded or Audited
+                return True, "Python fallback: policy satisfied"
+            return False, (
+                f"Python fallback: flush_io_queue blocked — "
+                f"FSM={fsm_state!r} not in (Degraded, Audited)"
+            )
+
+        if action == "checkpoint_and_restart":
+            if score < 0.80:
+                return False, (
+                    f"Python fallback: checkpoint_and_restart blocked — "
+                    f"score {score:.3f} < 0.80"
+                )
+            if fsm_code in (2, 3):   # Audited or Repairing
+                return True, "Python fallback: policy satisfied"
+            return False, (
+                f"Python fallback: checkpoint_and_restart blocked — "
+                f"FSM={fsm_state!r} not in (Audited, Repairing)"
+            )
+
+        if action == "escalate":
+            if score < 0.95:
+                return False, f"Python fallback: escalate blocked — score {score:.3f} < 0.95"
+            if fsm_code in (1, 2, 3):   # Degraded, Audited, or Repairing
+                return True, "Python fallback: policy satisfied"
+            return False, (
+                f"Python fallback: escalate blocked — "
+                f"FSM={fsm_state!r} not in (Degraded, Audited, Repairing)"
+            )
+
+        # Unknown action — allow (mirrors no_action.wat behaviour for unregistered actions)
+        return True, f"Python fallback: unknown action {action!r} — defaulting to allow"
 
 # ── Reversibility catalogue — imported by reconcile.py for gate enforcement ───
 REVERSIBILITY: dict = {

@@ -15,10 +15,84 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-REPO_ROOT       = os.path.join(os.path.dirname(__file__), "..")
-STATELESS_TRACE = os.path.join(REPO_ROOT, "stateless", "traces.jsonl")
-STATEFUL_TRACE  = os.path.join(REPO_ROOT, "stateful",  "traces.jsonl")
+REPO_ROOT        = os.path.join(os.path.dirname(__file__), "..")
+STATELESS_TRACE  = os.path.join(REPO_ROOT, "stateless", "traces.jsonl")
+STATEFUL_TRACE   = os.path.join(REPO_ROOT, "stateful",  "traces.jsonl")
+STATELESS_DIV    = os.path.join(REPO_ROOT, "stateless", "divergence_log.jsonl")
+STATEFUL_DIV     = os.path.join(REPO_ROOT, "stateful",  "divergence_log.jsonl")
 REFRESH_INTERVAL = 4
+
+
+def _load_jsonl(path: str) -> list:
+    if not os.path.exists(path):
+        return []
+    rows = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+    return rows
+
+
+@st.cache_data(ttl=REFRESH_INTERVAL)
+def load_metrics() -> dict:
+    """Compute live research metrics from trace + divergence files."""
+    sl = _load_jsonl(STATELESS_TRACE)
+    sf = _load_jsonl(STATEFUL_TRACE)
+    sl_div = _load_jsonl(STATELESS_DIV)
+    sf_div = _load_jsonl(STATEFUL_DIV)
+
+    sl_real = [t for t in sl if t.get("mode") == "real"]
+    sf_real = [t for t in sf if t.get("mode") == "real"]
+
+    # Divergence rate
+    sl_div_rate = round(len(sl_div) / len(sl_real), 4) if sl_real else 0.0
+    sf_div_rate = round(len(sf_div) / len(sf_real), 4) if sf_real else 0.0
+
+    # MTTR — scan per container for fault onset → recovery pairs
+    def _mttr(traces):
+        by_c = {}
+        for t in sorted(traces, key=lambda x: x.get("trace_time", 0)):
+            by_c.setdefault(t.get("container"), []).append(t)
+        samples = []
+        for evs in by_c.values():
+            onset = None
+            for ev in evs:
+                tt = float(ev.get("trace_time", 0))
+                if onset is None and ev.get("action") != "no_action":
+                    onset = tt
+                elif onset is not None and ev.get("action") == "no_action":
+                    samples.append(tt - onset)
+                    onset = None
+        return round(sum(samples) / len(samples), 1) if samples else None
+
+    # Suppression rate (stateful — wasm_blocked)
+    sf_suppressed = sum(1 for t in sf_real if t.get("wasm_blocked") or t.get("blocked_reason"))
+    sf_supp_rate  = round(sf_suppressed / len(sf_real), 4) if sf_real else 0.0
+
+    # Explanation completeness — traces with all key fields non-null
+    _req = ["why", "action", "score", "dag_pattern"]
+    def _completeness(traces):
+        if not traces:
+            return None
+        ok = sum(1 for t in traces if all(t.get(f) not in (None, "") for f in _req))
+        return round(ok / len(traces), 4)
+
+    return {
+        "sl_div_count": len(sl_div),
+        "sf_div_count": len(sf_div),
+        "sl_div_rate":  sl_div_rate,
+        "sf_div_rate":  sf_div_rate,
+        "sl_mttr":      _mttr(sl_real),
+        "sf_mttr":      _mttr(sf_real),
+        "sf_supp_rate": sf_supp_rate,
+        "sl_complete":  _completeness(sl),
+        "sf_complete":  _completeness(sf),
+    }
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -103,8 +177,18 @@ with st.sidebar:
                                     default=df["track"].unique().tolist())
     sel_containers = st.multiselect("Containers", sorted(df["container"].unique()),
                                     default=sorted(df["container"].unique()))
-    sel_modes      = st.multiselect("Mode", df["mode"].unique().tolist(),
-                                    default=df["mode"].unique().tolist())
+    sel_modes      = st.multiselect(
+        "Mode",
+        df["mode"].unique().tolist(),
+        default=df["mode"].unique().tolist(),
+        help=(
+            "Filters which trace rows are displayed — NOT a pipeline switch.\n\n"
+            "• **real** — decisions that were actually executed by the real controller\n"
+            "• **shadow** — decisions computed by the parallel dry-run controller "
+            "(never executed)\n\n"
+            "To change pipeline mode, restart main.py with `--shadow` or `--real`."
+        ),
+    )
     st.divider()
     st.caption(f"Total trace entries: {len(df)}")
 
@@ -142,6 +226,55 @@ c2.metric("Flush IO",         int((f_real["action"] == "flush_io_queue").sum()))
 c3.metric("Checkpoint Restart", int((f_real["action"] == "checkpoint_and_restart").sum()))
 c4.metric("Escalations",      int((f_real["action"] == "escalate").sum()))
 c5.metric("Peak Score",       f"{f_real['score'].max():.2f}" if not f_real.empty else "—")
+
+st.divider()
+
+# ── Research Metrics panel ────────────────────────────────────────────────────
+st.markdown('<div class="section-title">Research Metrics</div>', unsafe_allow_html=True)
+
+_m = load_metrics()
+
+rm1, rm2, rm3, rm4, rm5, rm6, rm7 = st.columns(7)
+
+rm1.metric(
+    "Divergence Rate (S)",
+    f"{_m['sl_div_rate']:.1%}",
+    delta=f"{_m['sl_div_count']} events",
+    delta_color="off",
+    help="Fraction of real S-track decisions where the shadow controller chose a different action.",
+)
+rm2.metric(
+    "Divergence Rate (F)",
+    f"{_m['sf_div_rate']:.1%}",
+    delta=f"{_m['sf_div_count']} events",
+    delta_color="off",
+    help="Fraction of real F-track decisions where the shadow controller chose a different action.",
+)
+rm3.metric(
+    "MTTR (S)",
+    f"{_m['sl_mttr']:.1f}s" if _m["sl_mttr"] is not None else "—",
+    help="Mean time from fault onset to recovery for stateless containers.",
+)
+rm4.metric(
+    "MTTR (F)",
+    f"{_m['sf_mttr']:.1f}s" if _m["sf_mttr"] is not None else "—",
+    help="Mean time from fault onset to recovery for stateful containers.",
+)
+rm5.metric(
+    "Suppression Rate (F)",
+    f"{_m['sf_supp_rate']:.1%}",
+    help="Fraction of F-track real decisions blocked by the WASM sandbox or FSM gate.",
+)
+rm6.metric(
+    "Trace Completeness (S)",
+    f"{_m['sl_complete']:.1%}" if _m["sl_complete"] is not None else "—",
+    help="Fraction of S-track traces with all explanation fields populated.",
+)
+rm7.metric(
+    "Trace Completeness (F)",
+    f"{_m['sf_complete']:.1%}" if _m["sf_complete"] is not None else "—",
+    help="Fraction of F-track traces with all explanation fields populated.",
+)
 
 st.divider()
 

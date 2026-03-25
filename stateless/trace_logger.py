@@ -31,7 +31,11 @@ def log_decision(decision: dict, action_result: dict) -> dict:
         "stdout": action_result.get("stdout", ""),
         "stderr": action_result.get("stderr", ""),
         "decision_timestamp": decision.get("timestamp"),
-        "action_timestamp": action_result.get("timestamp"),
+        "action_timestamp":   action_result.get("timestamp"),
+        # ── Common extension fields (schema 1.2.0 — present in both S and F traces) ──
+        "node_type":      "S",
+        "kernel_signals": decision.get("kernel_signals", []),
+        "dag_pattern":    decision.get("dag_pattern"),
     }
 
     with open(TRACE_FILE, "a") as f:

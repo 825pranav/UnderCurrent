@@ -1,0 +1,29 @@
+{
+  "scenario_id": "ambiguous_01",
+  "controller": "stateless",
+  "trial_idx": 0,
+  "seed": 42,
+  "decisions": [
+    {
+      "container": "sim-s-ambiguous",
+      "score": 0.72,
+      "action": "no_action",
+      "reason": "score 0.72 below restart threshold 0.8",
+      "timestamp": 1774508194.3730226,
+      "kernel_signals": [
+        "tcp_connect_fail"
+      ],
+      "dag_pattern": "nominal",
+      "mode": "real",
+      "phase": 0
+    }
+  ],
+  "expected_action": "no_action",
+  "expected_sequence": [
+    "no_action"
+  ],
+  "correct": true,
+  "decision_latency_ns": 9208,
+  "injected_event_count": 4,
+  "timestamp": 1774508194.3730252
+}

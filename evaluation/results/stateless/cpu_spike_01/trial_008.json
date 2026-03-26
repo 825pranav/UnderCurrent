@@ -1,0 +1,29 @@
+{
+  "scenario_id": "cpu_spike_01",
+  "controller": "stateless",
+  "trial_idx": 8,
+  "seed": 50,
+  "decisions": [
+    {
+      "container": "sim-s-cpu-spike",
+      "score": 0.9,
+      "action": "restart",
+      "reason": "score 0.9 >= restart threshold 0.8",
+      "timestamp": 1774508194.3693001,
+      "kernel_signals": [
+        "tcp_connect_fail"
+      ],
+      "dag_pattern": "network_degraded",
+      "mode": "real",
+      "phase": 0
+    }
+  ],
+  "expected_action": "restart",
+  "expected_sequence": [
+    "restart"
+  ],
+  "correct": true,
+  "decision_latency_ns": 6083,
+  "injected_event_count": 5,
+  "timestamp": 1774508194.3693023
+}

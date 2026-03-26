@@ -1,0 +1,5 @@
+metric,controller_a,controller_b,p_value,effect_size,significant_05,significant_01,n_pairs,scipy_used
+correctness,baseline,stateful,8e-06,-1.3964,True,True,40,False
+decision_latency_ns,baseline,stateful,0.0,-0.5889,True,True,40,False
+correctness,baseline,stateless,1.0,0.0,False,False,80,False
+decision_latency_ns,baseline,stateless,0.0,-0.6697,True,True,80,False

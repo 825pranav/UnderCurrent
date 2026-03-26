@@ -4,6 +4,7 @@ const NAV_ITEMS = [
   { id: "overview",   label: "Overview",        icon: "dashboard" },
   { id: "stateless",  label: "Stateless Track",  icon: "waves" },
   { id: "stateful",   label: "Stateful Track",   icon: "memory" },
+  { id: "shadow",     label: "Shadow Track",     icon: "visibility" },
   { id: "audit",      label: "Audit Log",        icon: "receipt_long" },
   { id: "settings",   label: "Settings",         icon: "settings" },
 ];

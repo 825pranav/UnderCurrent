@@ -109,7 +109,7 @@ function ContainerCard({ container }) {
   );
 }
 
-export default function FSMPanel({ containers }) {
+export default function FSMPanel({ containers, onViewAll }) {
   if (!containers || containers.length === 0) {
     return (
       <div className="glass-card rounded-lg p-4">
@@ -127,7 +127,18 @@ export default function FSMPanel({ containers }) {
     <div className="glass-card rounded-lg p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-headline font-semibold text-on-surface text-base">Container States</h3>
-        <span className="text-xs text-outline">{containers.length} containers</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-outline">{containers.length} containers</span>
+          {onViewAll && (
+            <button
+              onClick={onViewAll}
+              className="text-xs font-bold text-primary-container flex items-center gap-1 hover:text-primary transition-colors"
+            >
+              VIEW ALL
+              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* FSM legend */}

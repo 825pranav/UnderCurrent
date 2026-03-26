@@ -34,6 +34,9 @@ export default function AuditLog({ traces, searchQuery, isLoading }) {
   const [sortDir, setSortDir]   = useState("desc");
   const [page, setPage]         = useState(1);
 
+  // Reset to page 1 whenever the search query changes
+  React.useEffect(() => { setPage(1); }, [searchQuery]);
+
   const handleSort = (col) => {
     if (sortCol === col) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));

@@ -175,7 +175,14 @@ sudo python3 stateful/main.py  --real
 
 ## Dashboards
 
-### Unified web dashboard
+### React dashboard (recommended)
+```bash
+python3 dashboard/backend.py
+# Open http://localhost:5050
+```
+Full-featured dark UI — Overview, Stateless, Stateful, Shadow, and Audit Log tabs. Includes global mode filter (All / Real / Shadow), per-process container chips, score timeline, action distribution, FSM state cards, divergence table, sortable/paginated audit log, CSV and PDF export.
+
+### Unified Streamlit dashboard
 ```bash
 streamlit run integration/unified_dashboard.py
 # http://localhost:8501
@@ -277,8 +284,9 @@ See `requirements.txt` for full details.
 
 | Branch | Contents |
 |---|---|
-| `main` | Both tracks, shared contracts, all dashboards |
-| `integration` | + unified launcher and dashboard |
+| `main` | Both tracks, shared contracts, Streamlit + terminal dashboards |
+| `react` | + React dashboard (`dashboard/`) — Flask backend + Vite frontend |
+| `integration` | + unified launcher and unified Streamlit dashboard |
 | `dataset-evaluation` | + RCAEval / Alibaba evaluation framework |
 
 ---

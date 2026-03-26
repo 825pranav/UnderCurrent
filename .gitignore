@@ -16,6 +16,10 @@ env/
 stateless/traces.jsonl
 stateful/traces.jsonl
 
+# Reports / generated scripts
+*.pdf
+generate_report.py
+
 # OS
 .DS_Store
 Thumbs.db

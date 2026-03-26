@@ -161,26 +161,34 @@ function TrackTab({ traces, timeline, containers, isLoading, searchQuery, track,
   );
 }
 
-function ShadowTab({ traces, timeline, containers, isLoading, searchQuery, setActiveTab }) {
-  const shadowTraces     = useMemo(() => traces.filter((t) => t.mode === "shadow"), [traces]);
-  const realTraces       = useMemo(() => traces.filter((t) => t.mode === "real"),   [traces]);
-  const divergences      = useMemo(
-    () => shadowTraces.filter((s) => {
-      const real = realTraces.find(
-        (r) => r.container === s.container && Math.abs((r.trace_time ?? 0) - (s.trace_time ?? 0)) < 2
-      );
-      return real && real.action !== s.action;
-    }),
-    [shadowTraces, realTraces]
-  );
+function ShadowTab({ traces, isLoading, searchQuery, setActiveTab }) {
+  const shadowTraces = useMemo(() => traces.filter((t) => t.mode === "shadow"), [traces]);
+  const realTraces   = useMemo(() => traces.filter((t) => t.mode === "real"),   [traces]);
 
+  // Build shadow timeline client-side (backend timeline only has real-mode data)
   const shadowTimeline = useMemo(() => {
-    const result = {};
-    Object.entries(timeline).forEach(([container, points]) => {
-      result[container] = points;
+    const byContainer = {};
+    shadowTraces.forEach((t) => {
+      const c = t.container ?? "unknown";
+      if (!byContainer[c]) byContainer[c] = [];
+      byContainer[c].push({ time: t.trace_time ?? 0, score: t.score ?? 0 });
     });
-    return result;
-  }, [timeline]);
+    return byContainer;
+  }, [shadowTraces]);
+
+  // O(n) divergence detection via Map
+  const divergences = useMemo(() => {
+    const realMap = new Map();
+    realTraces.forEach((r) => {
+      const key = `${r.container}:${Math.round(r.trace_time ?? 0)}`;
+      realMap.set(key, r);
+    });
+    return shadowTraces.filter((s) => {
+      const key = `${s.container}:${Math.round(s.trace_time ?? 0)}`;
+      const real = realMap.get(key);
+      return real && real.action !== s.action;
+    });
+  }, [shadowTraces, realTraces]);
 
   return (
     <div className="space-y-6">
@@ -456,17 +464,20 @@ export default function App() {
             setActiveTab={setActiveTab}
           />
         );
-      case "shadow":
+      case "shadow": {
+        // Apply container filter but NOT mode filter — ShadowTab handles both modes internally
+        const shadowTabTraces = selectedContainers.length > 0
+          ? traces.filter((t) => selectedContainers.includes(t.container))
+          : traces;
         return (
           <ShadowTab
-            traces={traces}
-            timeline={filteredTimeline}
-            containers={filteredContainers}
+            traces={shadowTabTraces}
             isLoading={isLoading}
             searchQuery={searchQuery}
             setActiveTab={setActiveTab}
           />
         );
+      }
       case "audit":
         return (
           <div className="space-y-4">

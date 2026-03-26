@@ -1,0 +1,45 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "surface":                    "#131317",
+        "surface-dim":                "#131317",
+        "surface-container-lowest":   "#0e0e12",
+        "surface-container-low":      "#1b1b1f",
+        "surface-container":          "#1f1f23",
+        "surface-container-high":     "#2a292e",
+        "surface-container-highest":  "#353439",
+        "surface-variant":            "#353439",
+        "on-surface":                 "#e4e1e7",
+        "on-surface-variant":         "#c1c7d3",
+        "primary":                    "#a4c9ff",
+        "primary-container":          "#60a5fa",
+        "on-primary":                 "#00315d",
+        "secondary":                  "#cebdff",
+        "secondary-container":        "#4f319c",
+        "on-secondary":               "#381385",
+        "tertiary":                   "#eec200",
+        "tertiary-container":         "#c39e00",
+        "error":                      "#ffb4ab",
+        "error-container":            "#93000a",
+        "outline":                    "#8b919d",
+        "outline-variant":            "#414751",
+      },
+      fontFamily: {
+        headline: ["Space Grotesk", "sans-serif"],
+        body:     ["Inter", "sans-serif"],
+        label:    ["Inter", "sans-serif"],
+      },
+      borderRadius: {
+        DEFAULT: "0.125rem",
+        lg:      "0.25rem",
+        xl:      "0.5rem",
+        full:    "0.75rem",
+      },
+    },
+  },
+  plugins: [],
+};

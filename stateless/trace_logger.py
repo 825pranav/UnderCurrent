@@ -36,6 +36,7 @@ def log_decision(decision: dict, action_result: dict) -> dict:
         "node_type":      "S",
         "kernel_signals": decision.get("kernel_signals", []),
         "dag_pattern":    decision.get("dag_pattern"),
+        "reversibility":  action_result.get("reversibility"),
     }
 
     with open(TRACE_FILE, "a") as f:

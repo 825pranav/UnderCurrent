@@ -15,6 +15,14 @@ env/
 # UnderCurrent runtime output
 stateless/traces.jsonl
 stateful/traces.jsonl
+stateful/divergence_log.jsonl
+
+# Generated evaluation results (reproducible via scripts, kept locally only)
+shared/eval_results.json
+shared/cross_eval_results.json
+shared/sensitivity_results.json
+shared/safety_gate_verification.json
+stateful/ablation_results.json
 
 # Reports / generated scripts
 *.pdf

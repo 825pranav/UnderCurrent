@@ -8,6 +8,13 @@ import subprocess
 import time
 
 
+REVERSIBILITY: dict = {
+    "no_action":  "reversible",
+    "restart":    "reversible",
+    "reschedule": "reversible",
+}
+
+
 def restart(container: str) -> dict:
     """
     Run `docker restart <container>`.
@@ -21,30 +28,33 @@ def restart(container: str) -> dict:
         )
         success = result.returncode == 0
         return {
-            "container": container,
-            "action": "restart",
-            "success": success,
-            "stdout": result.stdout.strip(),
-            "stderr": result.stderr.strip(),
-            "timestamp": time.time(),
+            "container":     container,
+            "action":        "restart",
+            "success":       success,
+            "stdout":        result.stdout.strip(),
+            "stderr":        result.stderr.strip(),
+            "timestamp":     time.time(),
+            "reversibility": "reversible",
         }
     except FileNotFoundError:
         return {
-            "container": container,
-            "action": "restart",
-            "success": False,
-            "stdout": "",
-            "stderr": "docker not found",
-            "timestamp": time.time(),
+            "container":     container,
+            "action":        "restart",
+            "success":       False,
+            "stdout":        "",
+            "stderr":        "docker not found",
+            "timestamp":     time.time(),
+            "reversibility": "reversible",
         }
     except subprocess.TimeoutExpired:
         return {
-            "container": container,
-            "action": "restart",
-            "success": False,
-            "stdout": "",
-            "stderr": "docker restart timed out",
-            "timestamp": time.time(),
+            "container":     container,
+            "action":        "restart",
+            "success":       False,
+            "stdout":        "",
+            "stderr":        "docker restart timed out",
+            "timestamp":     time.time(),
+            "reversibility": "reversible",
         }
 
 
@@ -54,12 +64,13 @@ def reschedule(container: str) -> dict:
     """
     print(f"[actions] (simulated) rescheduling container: {container}")
     return {
-        "container": container,
-        "action": "reschedule",
-        "success": True,
-        "stdout": f"SIMULATED: would reschedule {container} via scheduler",
-        "stderr": "",
-        "timestamp": time.time(),
+        "container":     container,
+        "action":        "reschedule",
+        "success":       True,
+        "stdout":        f"SIMULATED: would reschedule {container} via scheduler",
+        "stderr":        "",
+        "timestamp":     time.time(),
+        "reversibility": "reversible",
     }
 
 
@@ -67,12 +78,13 @@ def no_action(container: str) -> dict:
     """No-op — score was below threshold."""
     print(f"[actions] no_action for container: {container}")
     return {
-        "container": container,
-        "action": "no_action",
-        "success": True,
-        "stdout": "",
-        "stderr": "",
-        "timestamp": time.time(),
+        "container":     container,
+        "action":        "no_action",
+        "success":       True,
+        "stdout":        "",
+        "stderr":        "",
+        "timestamp":     time.time(),
+        "reversibility": "reversible",
     }
 
 
@@ -88,13 +100,14 @@ def execute(decision: dict) -> dict:
     if mode == "shadow":
         print(f"[actions][SHADOW] would execute '{action}' on {container} — skipping")
         return {
-            "container": container,
-            "action": action,
-            "success": None,
-            "stdout": f"SHADOW: would run {action}",
-            "stderr": "",
-            "timestamp": time.time(),
-            "mode": "shadow",
+            "container":     container,
+            "action":        action,
+            "success":       None,
+            "stdout":        f"SHADOW: would run {action}",
+            "stderr":        "",
+            "timestamp":     time.time(),
+            "mode":          "shadow",
+            "reversibility": REVERSIBILITY.get(action, "reversible"),
         }
 
     if action == "restart":

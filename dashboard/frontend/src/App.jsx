@@ -7,150 +7,195 @@ import ActionDistribution from "./components/ActionDistribution.jsx";
 import FSMPanel from "./components/FSMPanel.jsx";
 import AuditLog from "./components/AuditLog.jsx";
 import { useTraces } from "./hooks/useTraces.js";
+import { exportCSV } from "./utils/export.js";
 
-/* ── FilterBar ───────────────────────────────────────────────── */
-
-function FilterBar({ modeFilter, setModeFilter, allContainerNames, selectedContainers, setSelectedContainers }) {
+/* ── Process filter bar ──────────────────────────────────────────── */
+function ProcessFilter({ allNames, selected, setSelected, modeFilter, setModeFilter }) {
   const modes = [
-    { id: "all",    label: "All",    color: "#8b919d" },
-    { id: "real",   label: "Real",   color: "#4ade80" },
-    { id: "shadow", label: "Shadow", color: "#a78bfa" },
+    { id: "all",    label: "All Modes" },
+    { id: "real",   label: "Real",   color: "#4ae183" },
+    { id: "shadow", label: "Shadow", color: "#c3c6d1" },
   ];
 
-  const toggleContainer = (name) => {
-    setSelectedContainers((prev) =>
-      prev.includes(name) ? prev.filter((c) => c !== name) : [...prev, name]
-    );
-  };
-
-  const clearContainers = () => setSelectedContainers([]);
+  const toggle = (name) =>
+    setSelected((prev) => prev.includes(name) ? prev.filter((c) => c !== name) : [...prev, name]);
 
   return (
-    <div className="glass-card rounded-lg px-4 py-3 flex flex-wrap items-center gap-4 mb-6">
-      {/* Mode pills */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-label font-medium text-outline uppercase tracking-wider">Mode</span>
-        <div className="flex items-center gap-1">
-          {modes.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => setModeFilter(m.id)}
-              className="text-xs font-label font-semibold px-2.5 py-1 rounded transition-all duration-150"
-              style={
-                modeFilter === m.id
-                  ? { background: m.color + "33", color: m.color, border: `1px solid ${m.color}66` }
-                  : { background: "transparent", color: "#8b919d", border: "1px solid #3a3a4a" }
-              }
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
+    <div className="flex flex-wrap items-center gap-3">
+      {/* Process pills */}
+      <div className="bg-surface-container-low p-1.5 rounded-xl flex flex-wrap gap-1">
+        <button
+          onClick={() => setSelected([])}
+          className={`px-5 py-2 rounded-lg text-sm font-label font-bold transition-all duration-150 ${
+            selected.length === 0
+              ? "bg-surface-container-highest text-primary"
+              : "text-on-surface-variant hover:bg-surface-container/50"
+          }`}
+        >
+          All Processes
+        </button>
+        {allNames.map((name) => (
+          <button
+            key={name}
+            onClick={() => toggle(name)}
+            className={`px-5 py-2 rounded-lg text-sm font-label transition-all duration-150 ${
+              selected.includes(name)
+                ? "bg-surface-container-highest text-primary font-bold"
+                : "text-on-surface-variant hover:bg-surface-container/50"
+            }`}
+          >
+            {name}
+          </button>
+        ))}
       </div>
 
-      {/* Divider */}
-      <div className="w-px h-5 bg-outline-variant" />
-
-      {/* Container chips */}
-      <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
-        <span className="text-xs font-label font-medium text-outline uppercase tracking-wider flex-shrink-0">
-          Process
-        </span>
-        {allContainerNames.length === 0 ? (
-          <span className="text-xs text-outline italic">No containers</span>
-        ) : (
-          <>
-            {allContainerNames.map((name) => {
-              const active = selectedContainers.includes(name);
-              return (
-                <button
-                  key={name}
-                  onClick={() => toggleContainer(name)}
-                  className="text-xs font-label font-medium px-2 py-0.5 rounded transition-all duration-150 flex-shrink-0"
-                  style={
-                    active
-                      ? { background: "#60a5fa33", color: "#60a5fa", border: "1px solid #60a5fa66" }
-                      : { background: "transparent", color: "#8b919d", border: "1px solid #3a3a4a" }
-                  }
-                >
-                  {name}
-                </button>
-              );
-            })}
-            {selectedContainers.length > 0 && (
-              <button
-                onClick={clearContainers}
-                className="text-xs text-outline hover:text-on-surface flex items-center gap-0.5 transition-colors flex-shrink-0"
-              >
-                <span className="material-symbols-outlined text-sm">close</span>
-                Clear
-              </button>
-            )}
-          </>
-        )}
+      {/* Mode pills */}
+      <div className="bg-surface-container-low p-1.5 rounded-xl flex gap-1">
+        {modes.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => setModeFilter(m.id)}
+            className={`px-4 py-2 rounded-lg text-xs font-label font-semibold transition-all duration-150 ${
+              modeFilter === m.id
+                ? "bg-surface-container-highest"
+                : "text-on-surface-variant hover:bg-surface-container/50"
+            }`}
+            style={modeFilter === m.id && m.color ? { color: m.color } : {}}
+          >
+            {m.label}
+          </button>
+        ))}
       </div>
     </div>
   );
 }
 
-/* ── Tab views ─────────────────────────────────────────────────── */
+/* ── Page header ──────────────────────────────────────────────────── */
+function PageHeader({ activeTab, stats, traces }) {
+  const TAB_META = {
+    overview:  { title: "System Overview",  icon: "dashboard",      badge: "Live Engine" },
+    stateless: { title: "Stateless Track",  icon: "dataset",        badge: "Type S" },
+    stateful:  { title: "Stateful Track",   icon: "database",       badge: "Type F · FSM" },
+    shadow:    { title: "Shadow Track",     icon: "visibility_off", badge: "Dry-Run" },
+    audit:     { title: "Audit Log",        icon: "history",        badge: "Append-Only" },
+    settings:  { title: "Settings",         icon: "settings",       badge: null },
+  };
 
+  const meta = TAB_META[activeTab] ?? { title: activeTab, icon: "circle", badge: null };
+  const realTraces = traces.filter((t) => t.mode === "real");
+  const peakScore  = realTraces.length ? Math.max(...realTraces.map((t) => t.score ?? 0)) : 0;
+
+  return (
+    <div className="flex justify-between items-end mb-8">
+      <div className="space-y-2">
+        <nav className="flex items-center gap-1.5 text-xs font-label text-on-surface-variant/60">
+          <span>Dashboard</span>
+          <span className="material-symbols-outlined text-[10px]">chevron_right</span>
+          <span className="text-primary/80">{meta.title}</span>
+        </nav>
+        <h2 className="text-4xl font-extrabold font-headline tracking-tight text-on-surface flex items-center gap-4">
+          {meta.title}
+          {meta.badge && (
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border"
+                  style={{ background: "rgba(0,218,243,0.08)", color: "#00daf3", borderColor: "rgba(0,218,243,0.2)" }}>
+              {meta.badge}
+            </span>
+          )}
+        </h2>
+      </div>
+
+      {stats && activeTab !== "settings" && (
+        <div className="flex gap-8">
+          <div className="text-right">
+            <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-label">Total Decisions</p>
+            <p className="text-3xl font-headline font-extrabold text-on-surface">
+              {stats.total?.toLocaleString() ?? "—"}
+              <span className="text-xs font-normal text-tertiary ml-2">live</span>
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-label">Peak Risk Score</p>
+            <p className="text-3xl font-headline font-extrabold"
+               style={{ color: peakScore >= 0.8 ? "#ffb4ab" : peakScore >= 0.5 ? "#f4a52a" : "#4ae183" }}>
+              {peakScore.toFixed(2)}
+              <span className={`text-xs font-normal ml-2 ${peakScore >= 0.8 ? "text-error" : "text-tertiary"}`}>
+                {peakScore >= 0.95 ? "critical" : peakScore >= 0.8 ? "warning" : "normal"}
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Alert banner ─────────────────────────────────────────────────── */
+function AlertBanner({ traces }) {
+  const critical = useMemo(() => {
+    const recent = traces.filter((t) => t.mode === "real" && (t.score ?? 0) >= 0.95);
+    const byContainer = {};
+    recent.forEach((t) => { byContainer[t.container] = t; });
+    return Object.values(byContainer);
+  }, [traces]);
+
+  if (critical.length === 0) return null;
+
+  return (
+    <div className="flex items-start gap-3 px-5 py-4 rounded-2xl border mb-6"
+         style={{ background: "rgba(255,180,171,0.06)", borderColor: "rgba(255,180,171,0.25)" }}>
+      <span className="material-symbols-outlined text-error mt-0.5 flex-shrink-0"
+            style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+      <div>
+        <p className="text-sm font-bold text-error font-headline">
+          {critical.length} container{critical.length > 1 ? "s" : ""} at critical risk
+        </p>
+        <p className="text-xs text-on-surface-variant mt-0.5">
+          {critical.map((c) => `${c.container} (${(c.score ?? 0).toFixed(2)})`).join(" · ")}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ── Overview tab ─────────────────────────────────────────────────── */
 function OverviewTab({ stats, traces, timeline, containers, isLoading, searchQuery, setActiveTab }) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      <AlertBanner traces={traces} />
       <KPIStrip stats={stats} timeline={timeline} />
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2">
+      <div className="grid grid-cols-12 gap-8">
+        <div className="col-span-12 xl:col-span-8">
           <ScoreTimeline timeline={timeline} />
         </div>
-        <ActionDistribution traces={traces} />
+        <div className="col-span-12 xl:col-span-4">
+          <ActionDistribution traces={traces} />
+        </div>
       </div>
-      <FSMPanel
-        containers={containers}
-        onViewAll={() => setActiveTab("stateful")}
-      />
+      <FSMPanel containers={containers} onViewAll={() => setActiveTab("stateful")} />
       <AuditLog traces={traces} searchQuery={searchQuery} isLoading={isLoading} />
     </div>
   );
 }
 
-function TrackTab({ traces, timeline, containers, isLoading, searchQuery, track, setActiveTab }) {
+/* ── Track tab ────────────────────────────────────────────────────── */
+function TrackTab({ traces, timeline, containers, isLoading, searchQuery, track, setActiveTab, stats }) {
   const filteredTraces     = useMemo(() => traces.filter((t) => t.track === track), [traces, track]);
   const filteredContainers = useMemo(() => containers.filter((c) => c.track === track), [containers, track]);
-
-  const filteredTimeline = useMemo(() => {
-    const containerSet = new Set(filteredContainers.map((c) => c.container));
-    return Object.fromEntries(
-      Object.entries(timeline).filter(([k]) => containerSet.has(k))
-    );
+  const filteredTimeline   = useMemo(() => {
+    const cSet = new Set(filteredContainers.map((c) => c.container));
+    return Object.fromEntries(Object.entries(timeline).filter(([k]) => cSet.has(k)));
   }, [timeline, filteredContainers]);
 
-  const label  = track === "S" ? "Stateless" : "Stateful";
-  const accent = track === "S" ? "text-primary-container" : "text-secondary";
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 pb-2 border-b border-outline-variant">
-        <span
-          className="inline-block px-3 py-1 rounded text-sm font-label font-semibold"
-          style={{
-            background: track === "S" ? "#1e3a5f" : "#2e1b5e",
-            color:      track === "S" ? "#60a5fa" : "#a78bfa",
-          }}
-        >
-          {track} Track
-        </span>
-        <h2 className={`font-headline font-bold text-xl ${accent}`}>{label} Track</h2>
-        <span className="text-sm text-outline ml-auto">
-          {filteredTraces.length} decisions · {filteredContainers.length} containers
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2">
+    <div className="space-y-8">
+      <AlertBanner traces={filteredTraces} />
+      <div className="grid grid-cols-12 gap-8">
+        <div className="col-span-12 xl:col-span-8">
           <ScoreTimeline timeline={filteredTimeline} />
         </div>
-        <ActionDistribution traces={filteredTraces} />
+        <div className="col-span-12 xl:col-span-4">
+          <ActionDistribution traces={filteredTraces} />
+        </div>
       </div>
       <FSMPanel
         containers={filteredContainers}
@@ -161,11 +206,11 @@ function TrackTab({ traces, timeline, containers, isLoading, searchQuery, track,
   );
 }
 
-function ShadowTab({ traces, isLoading, searchQuery, setActiveTab }) {
+/* ── Shadow tab ───────────────────────────────────────────────────── */
+function ShadowTab({ traces, isLoading, searchQuery }) {
   const shadowTraces = useMemo(() => traces.filter((t) => t.mode === "shadow"), [traces]);
   const realTraces   = useMemo(() => traces.filter((t) => t.mode === "real"),   [traces]);
 
-  // Build shadow timeline client-side (backend timeline only has real-mode data)
   const shadowTimeline = useMemo(() => {
     const byContainer = {};
     shadowTraces.forEach((t) => {
@@ -176,147 +221,120 @@ function ShadowTab({ traces, isLoading, searchQuery, setActiveTab }) {
     return byContainer;
   }, [shadowTraces]);
 
-  // O(n) divergence detection via Map
   const divergences = useMemo(() => {
     const realMap = new Map();
     realTraces.forEach((r) => {
-      const key = `${r.container}:${Math.round(r.trace_time ?? 0)}`;
-      realMap.set(key, r);
+      realMap.set(`${r.container}:${Math.round(r.trace_time ?? 0)}`, r);
     });
     return shadowTraces.filter((s) => {
-      const key = `${s.container}:${Math.round(s.trace_time ?? 0)}`;
-      const real = realMap.get(key);
+      const real = realMap.get(`${s.container}:${Math.round(s.trace_time ?? 0)}`);
       return real && real.action !== s.action;
     });
   }, [shadowTraces, realTraces]);
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3 pb-2 border-b border-outline-variant">
-        <span
-          className="inline-block px-3 py-1 rounded text-sm font-label font-semibold"
-          style={{ background: "#2e1b5e", color: "#a78bfa" }}
-        >
-          Shadow
-        </span>
-        <h2 className="font-headline font-bold text-xl" style={{ color: "#a78bfa" }}>
-          Shadow Track
-        </h2>
-        <span className="text-sm text-outline ml-auto">
-          {shadowTraces.length} shadow decisions · {divergences.length} divergences
-        </span>
-      </div>
+  const kpis = [
+    { label: "Shadow Decisions", value: shadowTraces.length, color: "#c3c6d1", icon: "visibility_off" },
+    { label: "Real Decisions",   value: realTraces.length,   color: "#4ae183", icon: "check_circle"  },
+    { label: "Divergences",      value: divergences.length,  color: "#ffb4ab", icon: "warning"       },
+    {
+      label: "Divergence Rate",
+      value: shadowTraces.length > 0
+        ? `${((divergences.length / shadowTraces.length) * 100).toFixed(1)}%`
+        : "—",
+      color: "#f4a52a",
+      icon: "percent",
+    },
+  ];
 
-      {/* Shadow info banner */}
-      <div
-        className="flex items-start gap-3 px-4 py-3 rounded-lg border"
-        style={{ background: "#2e1b5e33", borderColor: "#a78bfa44" }}
-      >
-        <span className="material-symbols-outlined mt-0.5 flex-shrink-0" style={{ color: "#a78bfa" }}>
-          visibility
-        </span>
+  return (
+    <div className="space-y-8">
+      {/* Info banner */}
+      <div className="flex items-start gap-3 px-5 py-4 rounded-2xl border"
+           style={{ background: "rgba(195,198,209,0.06)", borderColor: "rgba(195,198,209,0.2)" }}>
+        <span className="material-symbols-outlined text-secondary mt-0.5 flex-shrink-0">visibility_off</span>
         <div>
-          <p className="text-sm font-medium" style={{ color: "#a78bfa" }}>
-            Shadow Mode — Dry-Run Parallel Path
-          </p>
-          <p className="text-xs text-outline mt-0.5">
-            Shadow decisions are computed but not executed. Divergences occur when the shadow path
-            would take a different action than the real path under the same conditions.
+          <p className="text-sm font-bold text-secondary font-headline">Shadow Mode — Dry-Run Parallel Path</p>
+          <p className="text-xs text-on-surface-variant mt-0.5">
+            Decisions are computed but never executed. Divergences show where the shadow path would choose
+            differently from the real controller under identical conditions.
           </p>
         </div>
       </div>
 
-      {/* KPI row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Shadow Decisions", value: shadowTraces.length, color: "#a78bfa", icon: "visibility" },
-          { label: "Real Decisions",   value: realTraces.length,   color: "#4ade80",  icon: "check_circle" },
-          { label: "Divergences",      value: divergences.length,  color: "#ffb4ab",  icon: "warning" },
-          {
-            label: "Divergence Rate",
-            value: shadowTraces.length > 0
-              ? `${((divergences.length / shadowTraces.length) * 100).toFixed(1)}%`
-              : "—",
-            color: "#eec200",
-            icon: "percent",
-          },
-        ].map((card) => (
-          <div key={card.label} className="glass-card rounded-lg p-4 flex flex-col gap-2">
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        {kpis.map((k) => (
+          <div key={k.label} className="bg-surface-container rounded-2xl p-6 border border-outline-variant/20 flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-label font-medium text-outline uppercase tracking-wider">
-                {card.label}
-              </span>
-              <span className="material-symbols-outlined text-lg" style={{ color: card.color }}>
-                {card.icon}
-              </span>
+              <span className="text-[10px] font-label font-medium text-on-surface-variant uppercase tracking-widest">{k.label}</span>
+              <span className="material-symbols-outlined text-xl" style={{ color: k.color }}>{k.icon}</span>
             </div>
-            <span className="font-headline text-2xl font-bold" style={{ color: card.color }}>
-              {card.value}
-            </span>
+            <span className="font-headline text-3xl font-extrabold" style={{ color: k.color }}>{k.value}</span>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2">
+      <div className="grid grid-cols-12 gap-8">
+        <div className="col-span-12 xl:col-span-8">
           <ScoreTimeline timeline={shadowTimeline} />
         </div>
-        <ActionDistribution traces={shadowTraces} />
+        <div className="col-span-12 xl:col-span-4">
+          <ActionDistribution traces={shadowTraces} />
+        </div>
       </div>
 
-      {/* Divergence log */}
+      {/* Divergence table */}
       {divergences.length > 0 && (
-        <div className="glass-card rounded-lg overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-outline-variant">
-            <h3 className="font-headline font-semibold text-on-surface text-base">
-              Divergences
-            </h3>
-            <span className="text-xs" style={{ color: "#ffb4ab" }}>
+        <div className="bg-surface-container rounded-2xl border border-outline-variant/20 overflow-hidden">
+          <div className="flex items-center justify-between px-8 py-5 border-b border-outline-variant/20">
+            <div>
+              <h3 className="font-headline font-bold text-lg text-on-surface">Divergences</h3>
+              <p className="text-xs text-on-surface-variant mt-0.5">Where shadow ≠ real</p>
+            </div>
+            <span className="text-xs font-bold px-3 py-1 rounded-full"
+                  style={{ background: "rgba(255,180,171,0.1)", color: "#ffb4ab" }}>
               {divergences.length} found
             </span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs font-body">
+            <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-outline-variant bg-surface-container-low">
+                <tr className="border-b border-outline-variant/20 bg-surface-container-low/60">
                   {["Container", "Track", "Shadow Action", "Real Action", "Score"].map((h) => (
-                    <th key={h} className="px-4 py-2.5 text-left font-label font-medium text-outline uppercase tracking-wider whitespace-nowrap">
+                    <th key={h} className="px-6 py-4 text-[10px] font-label font-medium text-on-surface-variant uppercase tracking-widest whitespace-nowrap">
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                {divergences.slice(0, 20).map((s, i) => {
+              <tbody className="divide-y divide-outline-variant/10">
+                {divergences.slice(0, 25).map((s, i) => {
                   const real = realTraces.find(
                     (r) => r.container === s.container && Math.abs((r.trace_time ?? 0) - (s.trace_time ?? 0)) < 2
                   );
                   return (
-                    <tr key={i} className="border-b border-outline-variant hover:bg-surface-container-high transition-colors border-l-2 border-l-amber-400">
-                      <td className="px-4 py-2.5 text-on-surface font-medium">{s.container}</td>
-                      <td className="px-4 py-2.5">
-                        <span
-                          className="inline-flex items-center justify-center w-6 h-5 text-xs font-semibold rounded"
-                          style={{
-                            background: s.track === "S" ? "#1e3a5f" : "#2e1b5e",
-                            color:      s.track === "S" ? "#60a5fa" : "#a78bfa",
-                          }}
-                        >
+                    <tr key={i} className="hover:bg-surface-container-high transition-colors border-l-2 border-l-error/60">
+                      <td className="px-6 py-4 text-sm font-bold text-primary">{s.container}</td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center justify-center w-7 h-6 text-[10px] font-bold rounded"
+                              style={{ background: s.track === "S" ? "rgba(0,218,243,0.12)" : "rgba(195,198,209,0.12)",
+                                       color: s.track === "S" ? "#00daf3" : "#c3c6d1" }}>
                           {s.track}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5">
-                        <span className="px-2 py-0.5 rounded text-xs font-label font-medium" style={{ background: "#a78bfa22", color: "#a78bfa" }}>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-0.5 rounded text-xs font-bold"
+                              style={{ background: "rgba(195,198,209,0.1)", color: "#c3c6d1" }}>
                           {(s.action ?? "").replace(/_/g, " ")}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5">
-                        <span className="px-2 py-0.5 rounded text-xs font-label font-medium" style={{ background: "#4ade8022", color: "#4ade80" }}>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-0.5 rounded text-xs font-bold"
+                              style={{ background: "rgba(74,225,131,0.1)", color: "#4ae183" }}>
                           {(real?.action ?? "—").replace(/_/g, " ")}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 font-semibold tabular-nums" style={{ color: "#eec200" }}>
+                      <td className="px-6 py-4 text-sm font-bold tabular-nums" style={{ color: "#f4a52a" }}>
                         {(s.score ?? 0).toFixed(3)}
                       </td>
                     </tr>
@@ -333,246 +351,157 @@ function ShadowTab({ traces, isLoading, searchQuery, setActiveTab }) {
   );
 }
 
+/* ── Settings tab ─────────────────────────────────────────────────── */
 function SettingsTab() {
+  const rows = [
+    { label: "Refresh Interval",  sub: "How often the dashboard polls the backend",      value: "4 seconds"                },
+    { label: "Backend URL",       sub: "Flask API endpoint",                              value: "localhost:5050", mono: true },
+    { label: "Trace Sources",     sub: "Files being watched by the backend",              value: "stateless/traces.jsonl\nstateful/traces.jsonl", mono: true, multi: true },
+    { label: "Real-Mode Default", sub: "run.py starts both tracks in real mode",          value: "python3 run.py", mono: true },
+    { label: "Shadow Command",    sub: "shadow.py starts both tracks in dry-run mode",    value: "python3 shadow.py", mono: true },
+    { label: "Streamlit Alt",     sub: "Separate Streamlit dashboard if preferred",       value: "python3 streamlit_dash.py", mono: true },
+  ];
+
   return (
-    <div className="space-y-4">
-      <h2 className="font-headline font-bold text-xl text-on-surface">Settings</h2>
-      <div className="glass-card rounded-lg p-6 space-y-4">
-        <div className="flex items-center justify-between py-3 border-b border-outline-variant">
-          <div>
-            <p className="text-sm font-medium text-on-surface">Refresh Interval</p>
-            <p className="text-xs text-outline mt-0.5">How often the dashboard polls the backend</p>
+    <div className="max-w-3xl space-y-6">
+      <div>
+        <h2 className="font-headline font-extrabold text-2xl text-on-surface">Settings</h2>
+        <p className="text-sm text-on-surface-variant mt-1">Dashboard configuration and quick reference.</p>
+      </div>
+      <div className="bg-surface-container rounded-2xl border border-outline-variant/20 overflow-hidden">
+        {rows.map((row, i) => (
+          <div key={row.label}
+               className={`flex items-center justify-between px-8 py-5 ${i < rows.length - 1 ? "border-b border-outline-variant/15" : ""}`}>
+            <div>
+              <p className="text-sm font-bold text-on-surface font-headline">{row.label}</p>
+              <p className="text-xs text-on-surface-variant mt-0.5">{row.sub}</p>
+            </div>
+            {row.multi ? (
+              <div className="text-right text-xs font-mono text-on-surface-variant">
+                {row.value.split("\n").map((v) => <p key={v}>{v}</p>)}
+              </div>
+            ) : (
+              <span className={`text-sm ${row.mono ? "font-mono text-on-surface-variant" : "font-bold text-primary"}`}>
+                {row.value}
+              </span>
+            )}
           </div>
-          <span className="text-sm text-primary-container font-semibold">4 seconds</span>
-        </div>
-        <div className="flex items-center justify-between py-3 border-b border-outline-variant">
-          <div>
-            <p className="text-sm font-medium text-on-surface">Backend URL</p>
-            <p className="text-xs text-outline mt-0.5">Flask API endpoint</p>
-          </div>
-          <span className="text-sm text-on-surface-variant font-mono">localhost:5050</span>
-        </div>
-        <div className="flex items-center justify-between py-3">
-          <div>
-            <p className="text-sm font-medium text-on-surface">Trace Sources</p>
-            <p className="text-xs text-outline mt-0.5">Files being watched</p>
-          </div>
-          <div className="text-right text-xs text-on-surface-variant font-mono">
-            <p>stateless/traces.jsonl</p>
-            <p>stateful/traces.jsonl</p>
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );
 }
 
-/* ── App ─────────────────────────────────────────────────────── */
-
+/* ── App ──────────────────────────────────────────────────────────── */
 export default function App() {
-  const [darkMode, setDarkMode]               = useState(true);
-  const [searchQuery, setSearchQuery]         = useState("");
-  const [activeTab, setActiveTab]             = useState("overview");
-  const [modeFilter, setModeFilter]           = useState("all");
+  const [darkMode, setDarkMode]                     = useState(true);
+  const [searchQuery, setSearchQuery]               = useState("");
+  const [activeTab, setActiveTab]                   = useState("overview");
+  const [modeFilter, setModeFilter]                 = useState("all");
   const [selectedContainers, setSelectedContainers] = useState([]);
 
   const { traces, stats, containers, timeline, isLoading, isError } = useTraces();
 
-  // Apply dark/light class to root
   React.useEffect(() => {
-    const root = document.documentElement;
-    if (darkMode) root.classList.add("dark");
-    else root.classList.remove("dark");
+    document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
 
-  // Unique container names for filter chips
   const allContainerNames = useMemo(
     () => [...new Set(traces.map((t) => t.container).filter(Boolean))].sort(),
     [traces]
   );
 
-  // Apply global filters to traces
   const filteredTraces = useMemo(() => {
-    let result = traces;
-    if (modeFilter !== "all") {
-      result = result.filter((t) => t.mode === modeFilter);
-    }
-    if (selectedContainers.length > 0) {
-      result = result.filter((t) => selectedContainers.includes(t.container));
-    }
-    return result;
+    let r = traces;
+    if (modeFilter !== "all")           r = r.filter((t) => t.mode === modeFilter);
+    if (selectedContainers.length > 0)  r = r.filter((t) => selectedContainers.includes(t.container));
+    return r;
   }, [traces, modeFilter, selectedContainers]);
 
-  // Apply container filter to containers list
-  const filteredContainers = useMemo(() => {
-    if (selectedContainers.length === 0) return containers;
-    return containers.filter((c) => selectedContainers.includes(c.container));
-  }, [containers, selectedContainers]);
+  const filteredContainers = useMemo(() =>
+    selectedContainers.length === 0 ? containers : containers.filter((c) => selectedContainers.includes(c.container)),
+    [containers, selectedContainers]
+  );
 
-  // Apply container filter to timeline
   const filteredTimeline = useMemo(() => {
     if (selectedContainers.length === 0) return timeline;
-    return Object.fromEntries(
-      Object.entries(timeline).filter(([k]) => selectedContainers.includes(k))
-    );
+    return Object.fromEntries(Object.entries(timeline).filter(([k]) => selectedContainers.includes(k)));
   }, [timeline, selectedContainers]);
 
-  const TAB_TITLES = {
-    overview:  "System Overview",
-    stateless: "Stateless Track",
-    stateful:  "Stateful Track",
-    shadow:    "Shadow Track",
-    audit:     "Audit Log",
-    settings:  "Settings",
-  };
-
   const renderContent = () => {
+    const commonProps = {
+      traces: filteredTraces, timeline: filteredTimeline,
+      containers: filteredContainers, isLoading, searchQuery, setActiveTab, stats,
+    };
     switch (activeTab) {
-      case "overview":
-        return (
-          <OverviewTab
-            stats={stats}
-            traces={filteredTraces}
-            timeline={filteredTimeline}
-            containers={filteredContainers}
-            isLoading={isLoading}
-            searchQuery={searchQuery}
-            setActiveTab={setActiveTab}
-          />
-        );
-      case "stateless":
-        return (
-          <TrackTab
-            traces={filteredTraces}
-            timeline={filteredTimeline}
-            containers={filteredContainers}
-            isLoading={isLoading}
-            searchQuery={searchQuery}
-            track="S"
-            setActiveTab={setActiveTab}
-          />
-        );
-      case "stateful":
-        return (
-          <TrackTab
-            traces={filteredTraces}
-            timeline={filteredTimeline}
-            containers={filteredContainers}
-            isLoading={isLoading}
-            searchQuery={searchQuery}
-            track="F"
-            setActiveTab={setActiveTab}
-          />
-        );
+      case "overview":  return <OverviewTab {...commonProps} />;
+      case "stateless": return <TrackTab {...commonProps} track="S" />;
+      case "stateful":  return <TrackTab {...commonProps} track="F" />;
       case "shadow": {
-        // Apply container filter but NOT mode filter — ShadowTab handles both modes internally
         const shadowTabTraces = selectedContainers.length > 0
           ? traces.filter((t) => selectedContainers.includes(t.container))
           : traces;
-        return (
-          <ShadowTab
-            traces={shadowTabTraces}
-            isLoading={isLoading}
-            searchQuery={searchQuery}
-            setActiveTab={setActiveTab}
-          />
-        );
+        return <ShadowTab traces={shadowTabTraces} isLoading={isLoading} searchQuery={searchQuery} />;
       }
       case "audit":
         return (
           <div className="space-y-4">
-            <h2 className="font-headline font-bold text-xl text-on-surface">Audit Log</h2>
             <AuditLog traces={filteredTraces} searchQuery={searchQuery} isLoading={isLoading} />
           </div>
         );
-      case "settings":
-        return <SettingsTab />;
-      default:
-        return null;
+      case "settings": return <SettingsTab />;
+      default: return null;
     }
   };
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface">
-      <Sidebar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-      />
+    <div className="min-h-screen bg-background text-on-surface">
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} darkMode={darkMode} setDarkMode={setDarkMode} />
 
-      {/* Main content area */}
       <div className="ml-64 flex flex-col min-h-screen">
         <TopBar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           activeTab={activeTab}
           traces={filteredTraces}
+          stats={stats}
         />
 
-        <main className="flex-1 p-6 overflow-auto">
-          {/* Connection error banner */}
+        <main className="flex-1 mt-20 px-10 py-10 space-y-6 overflow-auto">
+          {/* Error banner */}
           {isError && (
-            <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-lg bg-error-container border border-error border-opacity-30">
+            <div className="flex items-center gap-3 px-5 py-4 rounded-2xl border"
+                 style={{ background: "rgba(255,180,171,0.06)", borderColor: "rgba(255,180,171,0.25)" }}>
               <span className="material-symbols-outlined text-error">error</span>
               <p className="text-sm text-error font-body">
-                Cannot reach backend at <span className="font-mono">localhost:5050</span>. Start the Flask server:{" "}
-                <span className="font-mono">python dashboard/backend.py</span>
+                Cannot reach backend at <span className="font-mono">localhost:5050</span>.
+                Run: <span className="font-mono font-bold">python3 run.py</span>
               </p>
             </div>
           )}
 
-          {/* Live indicator */}
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="font-headline font-bold text-2xl text-on-surface">
-                {TAB_TITLES[activeTab] ?? activeTab}
-              </h1>
-              <p className="text-sm text-outline mt-0.5 font-body">
-                UnderCurrent · Adaptive Control Plane · Live
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-outline">
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span>Auto-refresh · 4s</span>
-              {stats && (
-                <span className="ml-2 px-2 py-0.5 rounded bg-surface-container border border-outline-variant text-on-surface-variant">
-                  {stats.total?.toLocaleString()} total decisions
-                </span>
-              )}
-              {modeFilter !== "all" && (
-                <span
-                  className="ml-1 px-2 py-0.5 rounded text-xs font-semibold"
-                  style={
-                    modeFilter === "real"
-                      ? { background: "#4ade8033", color: "#4ade80", border: "1px solid #4ade8066" }
-                      : { background: "#a78bfa33", color: "#a78bfa", border: "1px solid #a78bfa66" }
-                  }
-                >
-                  {modeFilter} mode
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Global filter bar — hidden on settings */}
           {activeTab !== "settings" && (
-            <FilterBar
-              modeFilter={modeFilter}
-              setModeFilter={setModeFilter}
-              allContainerNames={allContainerNames}
-              selectedContainers={selectedContainers}
-              setSelectedContainers={setSelectedContainers}
-            />
+            <>
+              <PageHeader activeTab={activeTab} stats={stats} traces={filteredTraces} />
+              <ProcessFilter
+                allNames={allContainerNames}
+                selected={selectedContainers}
+                setSelected={setSelectedContainers}
+                modeFilter={modeFilter}
+                setModeFilter={setModeFilter}
+              />
+            </>
           )}
 
           {renderContent()}
         </main>
 
-        {/* Footer */}
-        <footer className="px-6 py-3 border-t border-outline-variant text-xs text-outline flex items-center justify-between no-print">
-          <span>UnderCurrent Dashboard · {new Date().getFullYear()}</span>
-          <span>Stateless S + Stateful F tracks · Flask 5050 → Vite 5173</span>
+        <footer className="px-10 py-4 border-t border-outline-variant/20 text-xs text-on-surface-variant flex items-center justify-between no-print">
+          <span className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse" />
+            UnderCurrent · Adaptive Control Plane
+          </span>
+          <span>Type-S + Type-F · Flask 5050</span>
         </footer>
       </div>
     </div>

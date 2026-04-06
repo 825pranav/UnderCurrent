@@ -14,8 +14,8 @@
         "volume_mount_lost"
       ],
       "dag_pattern": "io_degradation_critical",
-      "timestamp": 1774508194.3804693,
-      "decision_latency_ns": 1708,
+      "timestamp": 1774509021.575141,
+      "decision_latency_ns": 17083,
       "phase": 0
     }
   ],
@@ -24,7 +24,7 @@
     "escalate"
   ],
   "correct": true,
-  "decision_latency_ns": 4167,
+  "decision_latency_ns": 19583,
   "injected_event_count": 1,
-  "timestamp": 1774508194.380471
+  "timestamp": 1774509021.5751426
 }

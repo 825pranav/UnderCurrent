@@ -17,7 +17,7 @@
       "fsm_state_after": "Degraded",
       "fsm_transition": "Healthy\u2192Degraded",
       "blocked_reason": null,
-      "timestamp": 1774508279.8516483,
+      "timestamp": 1774509021.5655892,
       "variant": "stateful_long_window",
       "phase": 0
     }
@@ -27,8 +27,8 @@
     "escalate"
   ],
   "correct": true,
-  "decision_latency_ns": 4625,
+  "decision_latency_ns": 6041,
   "injected_event_count": 1,
-  "timestamp": 1774508279.8516493,
+  "timestamp": 1774509021.5655909,
   "window_seconds": 120
 }

@@ -9,7 +9,7 @@
       "score": 0.95,
       "action": "reschedule",
       "reason": "score 0.95 >= reschedule threshold 0.95",
-      "timestamp": 1774508194.37172,
+      "timestamp": 1774509021.5260658,
       "kernel_signals": [
         "process_exit",
         "tcp_connect_fail"
@@ -24,7 +24,7 @@
     "reschedule"
   ],
   "correct": true,
-  "decision_latency_ns": 5167,
+  "decision_latency_ns": 4334,
   "injected_event_count": 4,
-  "timestamp": 1774508194.3717217
+  "timestamp": 1774509021.5260675
 }

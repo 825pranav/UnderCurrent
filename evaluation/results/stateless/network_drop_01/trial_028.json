@@ -1,0 +1,29 @@
+{
+  "scenario_id": "network_drop_01",
+  "controller": "stateless",
+  "trial_idx": 28,
+  "seed": 70,
+  "decisions": [
+    {
+      "container": "sim-s-netdrop",
+      "score": 0.95,
+      "action": "reschedule",
+      "reason": "score 0.95 >= reschedule threshold 0.95",
+      "timestamp": 1774509021.5213583,
+      "kernel_signals": [
+        "process_exit"
+      ],
+      "dag_pattern": "process_failure",
+      "mode": "real",
+      "phase": 0
+    }
+  ],
+  "expected_action": "reschedule",
+  "expected_sequence": [
+    "reschedule"
+  ],
+  "correct": true,
+  "decision_latency_ns": 5375,
+  "injected_event_count": 1,
+  "timestamp": 1774509021.5213602
+}

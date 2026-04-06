@@ -14,8 +14,8 @@
         "tcp_connect_fail"
       ],
       "dag_pattern": "network_degraded",
-      "timestamp": 1774508194.3789456,
-      "decision_latency_ns": 2625,
+      "timestamp": 1774509021.568667,
+      "decision_latency_ns": 3208,
       "phase": 0
     }
   ],
@@ -24,7 +24,7 @@
     "restart"
   ],
   "correct": true,
-  "decision_latency_ns": 3917,
+  "decision_latency_ns": 5375,
   "injected_event_count": 7,
-  "timestamp": 1774508194.3789463
+  "timestamp": 1774509021.5686684
 }

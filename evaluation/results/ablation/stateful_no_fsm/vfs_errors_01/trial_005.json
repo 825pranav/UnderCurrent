@@ -1,0 +1,51 @@
+{
+  "scenario_id": "vfs_errors_01",
+  "controller": "stateful_no_fsm",
+  "variant": "stateful_no_fsm",
+  "trial_idx": 5,
+  "seed": 47,
+  "decisions": [
+    {
+      "container": "sim-f-vfserr",
+      "score": 0.88,
+      "action": "checkpoint_and_restart",
+      "reason": "score 0.88 >= repair threshold 0.8",
+      "mode": "real",
+      "dag_pattern": "io_degradation_major",
+      "kernel_signals": [],
+      "fsm_state": "N/A",
+      "fsm_state_after": "N/A",
+      "fsm_transition": null,
+      "blocked_reason": null,
+      "timestamp": 1774509021.5102437,
+      "variant": "stateful_no_fsm",
+      "phase": 0
+    },
+    {
+      "container": "sim-f-vfserr",
+      "score": 0.88,
+      "action": "checkpoint_and_restart",
+      "reason": "score 0.88 >= repair threshold 0.8",
+      "mode": "real",
+      "dag_pattern": "io_degradation_major",
+      "kernel_signals": [],
+      "fsm_state": "N/A",
+      "fsm_state_after": "N/A",
+      "fsm_transition": null,
+      "blocked_reason": null,
+      "timestamp": 1774509021.5102477,
+      "variant": "stateful_no_fsm",
+      "phase": 1
+    }
+  ],
+  "expected_action": "checkpoint_and_restart",
+  "expected_sequence": [
+    "flush_io_queue",
+    "checkpoint_and_restart"
+  ],
+  "correct": false,
+  "decision_latency_ns": 9083,
+  "injected_event_count": 3,
+  "timestamp": 1774509021.5102503,
+  "window_seconds": 60
+}

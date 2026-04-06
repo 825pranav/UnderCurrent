@@ -1,0 +1,30 @@
+{
+  "scenario_id": "cpu_flicker_01",
+  "controller": "baseline",
+  "trial_idx": 18,
+  "seed": 60,
+  "decisions": [
+    {
+      "container": "sim-s-flicker",
+      "score": -1.0,
+      "action": "no_action",
+      "reason": "no threshold crossed",
+      "mode": "real",
+      "kernel_signals": [
+        "tcp_connect_fail"
+      ],
+      "dag_pattern": "nominal",
+      "timestamp": 1774509021.593986,
+      "decision_latency_ns": 1209,
+      "phase": 0
+    }
+  ],
+  "expected_action": "no_action",
+  "expected_sequence": [
+    "no_action"
+  ],
+  "correct": true,
+  "decision_latency_ns": 2583,
+  "injected_event_count": 2,
+  "timestamp": 1774509021.593987
+}

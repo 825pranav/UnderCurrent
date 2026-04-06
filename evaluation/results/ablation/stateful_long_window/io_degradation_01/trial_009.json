@@ -1,0 +1,51 @@
+{
+  "scenario_id": "io_degradation_01",
+  "controller": "stateful_long_window",
+  "variant": "stateful_long_window",
+  "trial_idx": 9,
+  "seed": 51,
+  "decisions": [
+    {
+      "container": "sim-f-io-degrad",
+      "score": 0.85,
+      "action": "flush_io_queue",
+      "reason": "checkpoint_and_restart deferred: FSM is Degraded, must reach Audited first",
+      "mode": "real",
+      "dag_pattern": "io_degradation_major",
+      "kernel_signals": [],
+      "fsm_state": "Healthy",
+      "fsm_state_after": "Audited",
+      "fsm_transition": "Degraded\u2192Audited",
+      "blocked_reason": "checkpoint_and_restart deferred: FSM is Degraded, must reach Audited first",
+      "timestamp": 1774509021.5637622,
+      "variant": "stateful_long_window",
+      "phase": 0
+    },
+    {
+      "container": "sim-f-io-degrad",
+      "score": 0.85,
+      "action": "checkpoint_and_restart",
+      "reason": "score 0.85 >= repair threshold 0.8",
+      "mode": "real",
+      "dag_pattern": "io_degradation_major",
+      "kernel_signals": [],
+      "fsm_state": "Audited",
+      "fsm_state_after": "Repairing",
+      "fsm_transition": "Audited\u2192Repairing",
+      "blocked_reason": null,
+      "timestamp": 1774509021.5637672,
+      "variant": "stateful_long_window",
+      "phase": 1
+    }
+  ],
+  "expected_action": "flush_io_queue",
+  "expected_sequence": [
+    "flush_io_queue",
+    "checkpoint_and_restart"
+  ],
+  "correct": true,
+  "decision_latency_ns": 11083,
+  "injected_event_count": 5,
+  "timestamp": 1774509021.5637693,
+  "window_seconds": 120
+}

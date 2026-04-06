@@ -1,0 +1,34 @@
+{
+  "scenario_id": "volume_lost_01",
+  "controller": "stateful_short_window",
+  "variant": "stateful_short_window",
+  "trial_idx": 19,
+  "seed": 61,
+  "decisions": [
+    {
+      "container": "sim-f-vollost",
+      "score": 0.97,
+      "action": "escalate",
+      "reason": "score 0.97 >= escalate threshold 0.95",
+      "mode": "real",
+      "dag_pattern": "io_degradation_critical",
+      "kernel_signals": [],
+      "fsm_state": "Healthy",
+      "fsm_state_after": "Degraded",
+      "fsm_transition": "Healthy\u2192Degraded",
+      "blocked_reason": null,
+      "timestamp": 1774509021.5474482,
+      "variant": "stateful_short_window",
+      "phase": 0
+    }
+  ],
+  "expected_action": "escalate",
+  "expected_sequence": [
+    "escalate"
+  ],
+  "correct": true,
+  "decision_latency_ns": 9000,
+  "injected_event_count": 1,
+  "timestamp": 1774509021.54745,
+  "window_seconds": 30
+}

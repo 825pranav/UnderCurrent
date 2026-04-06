@@ -1,0 +1,30 @@
+{
+  "scenario_id": "ambiguous_01",
+  "controller": "baseline",
+  "trial_idx": 23,
+  "seed": 65,
+  "decisions": [
+    {
+      "container": "sim-s-ambiguous",
+      "score": -1.0,
+      "action": "no_action",
+      "reason": "no threshold crossed",
+      "mode": "real",
+      "kernel_signals": [
+        "tcp_connect_fail"
+      ],
+      "dag_pattern": "nominal",
+      "timestamp": 1774509021.5993207,
+      "decision_latency_ns": 1875,
+      "phase": 0
+    }
+  ],
+  "expected_action": "no_action",
+  "expected_sequence": [
+    "no_action"
+  ],
+  "correct": true,
+  "decision_latency_ns": 3583,
+  "injected_event_count": 4,
+  "timestamp": 1774509021.5993853
+}

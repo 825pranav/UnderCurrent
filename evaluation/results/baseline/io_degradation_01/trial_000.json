@@ -14,8 +14,8 @@
         "blk_io_latency_high"
       ],
       "dag_pattern": "io_degradation_minor",
-      "timestamp": 1774508194.379379,
-      "decision_latency_ns": 3167,
+      "timestamp": 1774509021.5716536,
+      "decision_latency_ns": 3958,
       "phase": 0
     },
     {
@@ -28,8 +28,8 @@
         "blk_io_latency_high"
       ],
       "dag_pattern": "io_degradation_minor",
-      "timestamp": 1774508194.379384,
-      "decision_latency_ns": 2375,
+      "timestamp": 1774509021.5716581,
+      "decision_latency_ns": 2458,
       "phase": 1
     }
   ],
@@ -39,7 +39,7 @@
     "checkpoint_and_restart"
   ],
   "correct": false,
-  "decision_latency_ns": 9292,
+  "decision_latency_ns": 10667,
   "injected_event_count": 5,
-  "timestamp": 1774508194.3793874
+  "timestamp": 1774509021.5716622
 }

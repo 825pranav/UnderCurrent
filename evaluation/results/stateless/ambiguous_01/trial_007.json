@@ -9,7 +9,7 @@
       "score": 0.72,
       "action": "no_action",
       "reason": "score 0.72 below restart threshold 0.8",
-      "timestamp": 1774508194.3734164,
+      "timestamp": 1774509021.5356114,
       "kernel_signals": [
         "tcp_connect_fail"
       ],
@@ -23,7 +23,7 @@
     "no_action"
   ],
   "correct": true,
-  "decision_latency_ns": 4250,
+  "decision_latency_ns": 6292,
   "injected_event_count": 4,
-  "timestamp": 1774508194.373418
+  "timestamp": 1774509021.5356143
 }

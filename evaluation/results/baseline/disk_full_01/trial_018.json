@@ -1,0 +1,30 @@
+{
+  "scenario_id": "disk_full_01",
+  "controller": "baseline",
+  "trial_idx": 18,
+  "seed": 60,
+  "decisions": [
+    {
+      "container": "sim-s-diskfull",
+      "score": -1.0,
+      "action": "restart",
+      "reason": "7 tcp_connect_fail events",
+      "mode": "real",
+      "kernel_signals": [
+        "tcp_connect_fail"
+      ],
+      "dag_pattern": "network_degraded",
+      "timestamp": 1774509021.5704107,
+      "decision_latency_ns": 3625,
+      "phase": 0
+    }
+  ],
+  "expected_action": "restart",
+  "expected_sequence": [
+    "restart"
+  ],
+  "correct": true,
+  "decision_latency_ns": 6542,
+  "injected_event_count": 7,
+  "timestamp": 1774509021.5704129
+}

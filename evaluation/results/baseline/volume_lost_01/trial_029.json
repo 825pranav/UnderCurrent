@@ -1,0 +1,30 @@
+{
+  "scenario_id": "volume_lost_01",
+  "controller": "baseline",
+  "trial_idx": 29,
+  "seed": 71,
+  "decisions": [
+    {
+      "container": "sim-f-vollost",
+      "score": -1.0,
+      "action": "escalate",
+      "reason": "unresolved volume_mount_lost",
+      "mode": "real",
+      "kernel_signals": [
+        "volume_mount_lost"
+      ],
+      "dag_pattern": "io_degradation_critical",
+      "timestamp": 1774509021.5775468,
+      "decision_latency_ns": 875,
+      "phase": 0
+    }
+  ],
+  "expected_action": "escalate",
+  "expected_sequence": [
+    "escalate"
+  ],
+  "correct": true,
+  "decision_latency_ns": 2167,
+  "injected_event_count": 1,
+  "timestamp": 1774509021.5775476
+}

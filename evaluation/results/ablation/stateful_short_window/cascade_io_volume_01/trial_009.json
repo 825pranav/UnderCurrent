@@ -1,0 +1,51 @@
+{
+  "scenario_id": "cascade_io_volume_01",
+  "controller": "stateful_short_window",
+  "variant": "stateful_short_window",
+  "trial_idx": 9,
+  "seed": 51,
+  "decisions": [
+    {
+      "container": "sim-f-cascade",
+      "score": 0.85,
+      "action": "flush_io_queue",
+      "reason": "checkpoint_and_restart deferred: FSM is Degraded, must reach Audited first",
+      "mode": "real",
+      "dag_pattern": "io_degradation_major",
+      "kernel_signals": [],
+      "fsm_state": "Healthy",
+      "fsm_state_after": "Audited",
+      "fsm_transition": "Degraded\u2192Audited",
+      "blocked_reason": "checkpoint_and_restart deferred: FSM is Degraded, must reach Audited first",
+      "timestamp": 1774509021.5603669,
+      "variant": "stateful_short_window",
+      "phase": 0
+    },
+    {
+      "container": "sim-f-cascade",
+      "score": 0.97,
+      "action": "escalate",
+      "reason": "score 0.97 >= escalate threshold 0.95",
+      "mode": "real",
+      "dag_pattern": "io_degradation_critical",
+      "kernel_signals": [],
+      "fsm_state": "Audited",
+      "fsm_state_after": "Audited",
+      "fsm_transition": null,
+      "blocked_reason": null,
+      "timestamp": 1774509021.5603745,
+      "variant": "stateful_short_window",
+      "phase": 1
+    }
+  ],
+  "expected_action": "escalate",
+  "expected_sequence": [
+    "flush_io_queue",
+    "escalate"
+  ],
+  "correct": true,
+  "decision_latency_ns": 14583,
+  "injected_event_count": 6,
+  "timestamp": 1774509021.5603771,
+  "window_seconds": 30
+}

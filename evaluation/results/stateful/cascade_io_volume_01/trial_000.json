@@ -9,7 +9,7 @@
       "score": 0.85,
       "action": "flush_io_queue",
       "reason": "checkpoint_and_restart deferred: FSM is Degraded, must reach Audited first",
-      "timestamp": 1774508194.3762891,
+      "timestamp": 1774509021.5542457,
       "fsm_state": "Healthy",
       "fsm_state_after": "Audited",
       "fsm_transition": "Degraded\u2192Audited",
@@ -27,7 +27,7 @@
       "score": 0.97,
       "action": "escalate",
       "reason": "score 0.97 >= escalate threshold 0.95",
-      "timestamp": 1774508194.376297,
+      "timestamp": 1774509021.5542552,
       "fsm_state": "Audited",
       "fsm_state_after": "Audited",
       "fsm_transition": null,
@@ -48,7 +48,7 @@
     "escalate"
   ],
   "correct": true,
-  "decision_latency_ns": 18000,
+  "decision_latency_ns": 22001,
   "injected_event_count": 6,
-  "timestamp": 1774508194.3763006
+  "timestamp": 1774509021.5542607
 }

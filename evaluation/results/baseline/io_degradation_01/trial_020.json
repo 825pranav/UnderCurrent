@@ -1,0 +1,45 @@
+{
+  "scenario_id": "io_degradation_01",
+  "controller": "baseline",
+  "trial_idx": 20,
+  "seed": 62,
+  "decisions": [
+    {
+      "container": "sim-f-io-degrad",
+      "score": -1.0,
+      "action": "flush_io_queue",
+      "reason": "5 high-latency blk_io events",
+      "mode": "real",
+      "kernel_signals": [
+        "blk_io_latency_high"
+      ],
+      "dag_pattern": "io_degradation_minor",
+      "timestamp": 1774509021.5740433,
+      "decision_latency_ns": 3125,
+      "phase": 0
+    },
+    {
+      "container": "sim-f-io-degrad",
+      "score": -1.0,
+      "action": "flush_io_queue",
+      "reason": "5 high-latency blk_io events",
+      "mode": "real",
+      "kernel_signals": [
+        "blk_io_latency_high"
+      ],
+      "dag_pattern": "io_degradation_minor",
+      "timestamp": 1774509021.5740473,
+      "decision_latency_ns": 2250,
+      "phase": 1
+    }
+  ],
+  "expected_action": "flush_io_queue",
+  "expected_sequence": [
+    "flush_io_queue",
+    "checkpoint_and_restart"
+  ],
+  "correct": false,
+  "decision_latency_ns": 8708,
+  "injected_event_count": 5,
+  "timestamp": 1774509021.5740497
+}

@@ -17,7 +17,7 @@
       "fsm_state_after": "Audited",
       "fsm_transition": "Degraded\u2192Audited",
       "blocked_reason": "checkpoint_and_restart deferred: FSM is Degraded, must reach Audited first",
-      "timestamp": 1774508279.8505123,
+      "timestamp": 1774509021.5426116,
       "variant": "stateful_short_window",
       "phase": 0
     },
@@ -33,7 +33,7 @@
       "fsm_state_after": "Repairing",
       "fsm_transition": "Audited\u2192Repairing",
       "blocked_reason": null,
-      "timestamp": 1774508279.8505182,
+      "timestamp": 1774509021.5426176,
       "variant": "stateful_short_window",
       "phase": 1
     }
@@ -44,8 +44,8 @@
     "checkpoint_and_restart"
   ],
   "correct": true,
-  "decision_latency_ns": 14042,
+  "decision_latency_ns": 15958,
   "injected_event_count": 5,
-  "timestamp": 1774508279.8505206,
+  "timestamp": 1774509021.5426202,
   "window_seconds": 30
 }

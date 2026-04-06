@@ -14,8 +14,8 @@
         "vfs_write_error"
       ],
       "dag_pattern": "io_degradation_minor",
-      "timestamp": 1774508194.382573,
-      "decision_latency_ns": 2333,
+      "timestamp": 1774509021.577951,
+      "decision_latency_ns": 3125,
       "phase": 0
     },
     {
@@ -28,8 +28,8 @@
         "vfs_write_error"
       ],
       "dag_pattern": "io_degradation_minor",
-      "timestamp": 1774508194.3825762,
-      "decision_latency_ns": 1625,
+      "timestamp": 1774509021.577955,
+      "decision_latency_ns": 1708,
       "phase": 1
     }
   ],
@@ -39,7 +39,7 @@
     "checkpoint_and_restart"
   ],
   "correct": false,
-  "decision_latency_ns": 6792,
+  "decision_latency_ns": 9166,
   "injected_event_count": 3,
-  "timestamp": 1774508194.382579
+  "timestamp": 1774509021.5779586
 }

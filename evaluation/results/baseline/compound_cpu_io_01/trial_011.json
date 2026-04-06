@@ -1,0 +1,31 @@
+{
+  "scenario_id": "compound_cpu_io_01",
+  "controller": "baseline",
+  "trial_idx": 11,
+  "seed": 53,
+  "decisions": [
+    {
+      "container": "sim-s-compound-cpu-io",
+      "score": -1.0,
+      "action": "reschedule",
+      "reason": "process_exit detected (1 event(s))",
+      "mode": "real",
+      "kernel_signals": [
+        "process_exit",
+        "tcp_connect_fail"
+      ],
+      "dag_pattern": "process_failure",
+      "timestamp": 1774509021.582232,
+      "decision_latency_ns": 1667,
+      "phase": 0
+    }
+  ],
+  "expected_action": "reschedule",
+  "expected_sequence": [
+    "reschedule"
+  ],
+  "correct": true,
+  "decision_latency_ns": 3000,
+  "injected_event_count": 4,
+  "timestamp": 1774509021.582234
+}

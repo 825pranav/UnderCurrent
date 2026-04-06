@@ -14,8 +14,8 @@
         "blk_io_latency_high"
       ],
       "dag_pattern": "io_degradation_minor",
-      "timestamp": 1774508194.385436,
-      "decision_latency_ns": 2584,
+      "timestamp": 1774509021.6003513,
+      "decision_latency_ns": 2917,
       "phase": 0
     },
     {
@@ -29,8 +29,8 @@
         "volume_mount_lost"
       ],
       "dag_pattern": "io_degradation_critical",
-      "timestamp": 1774508194.38544,
-      "decision_latency_ns": 2291,
+      "timestamp": 1774509021.6003556,
+      "decision_latency_ns": 2375,
       "phase": 1
     }
   ],
@@ -40,7 +40,7 @@
     "escalate"
   ],
   "correct": true,
-  "decision_latency_ns": 7542,
+  "decision_latency_ns": 8209,
   "injected_event_count": 6,
-  "timestamp": 1774508194.385442
+  "timestamp": 1774509021.6003578
 }

@@ -15,8 +15,8 @@
         "tcp_connect_fail"
       ],
       "dag_pattern": "process_failure",
-      "timestamp": 1774508194.3841603,
-      "decision_latency_ns": 1958,
+      "timestamp": 1774509021.5898,
+      "decision_latency_ns": 3083,
       "phase": 0
     }
   ],
@@ -25,7 +25,7 @@
     "reschedule"
   ],
   "correct": true,
-  "decision_latency_ns": 3167,
+  "decision_latency_ns": 64708,
   "injected_event_count": 6,
-  "timestamp": 1774508194.384161
+  "timestamp": 1774509021.5898018
 }

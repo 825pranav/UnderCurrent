@@ -1,0 +1,34 @@
+{
+  "scenario_id": "volume_lost_01",
+  "controller": "stateful_no_confidence",
+  "variant": "stateful_no_confidence",
+  "trial_idx": 18,
+  "seed": 60,
+  "decisions": [
+    {
+      "container": "sim-f-vollost",
+      "score": 0.1,
+      "action": "no_action",
+      "reason": "score 0.1 below all thresholds",
+      "mode": "real",
+      "dag_pattern": "nominal",
+      "kernel_signals": [],
+      "fsm_state": "Healthy",
+      "fsm_state_after": "Healthy",
+      "fsm_transition": null,
+      "blocked_reason": null,
+      "timestamp": 1774509021.5216198,
+      "variant": "stateful_no_confidence",
+      "phase": 0
+    }
+  ],
+  "expected_action": "escalate",
+  "expected_sequence": [
+    "escalate"
+  ],
+  "correct": false,
+  "decision_latency_ns": 3083,
+  "injected_event_count": 1,
+  "timestamp": 1774509021.521621,
+  "window_seconds": 60
+}

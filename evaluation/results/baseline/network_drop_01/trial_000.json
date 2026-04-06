@@ -14,8 +14,8 @@
         "process_exit"
       ],
       "dag_pattern": "process_failure",
-      "timestamp": 1774508194.3783536,
-      "decision_latency_ns": 1625,
+      "timestamp": 1774509021.56552,
+      "decision_latency_ns": 1584,
       "phase": 0
     }
   ],
@@ -24,7 +24,7 @@
     "reschedule"
   ],
   "correct": true,
-  "decision_latency_ns": 3583,
+  "decision_latency_ns": 3291,
   "injected_event_count": 1,
-  "timestamp": 1774508194.378355
+  "timestamp": 1774509021.5655215
 }

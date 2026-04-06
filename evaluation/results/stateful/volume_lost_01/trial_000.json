@@ -9,7 +9,7 @@
       "score": 0.97,
       "action": "escalate",
       "reason": "score 0.97 >= escalate threshold 0.95",
-      "timestamp": 1774508194.374426,
+      "timestamp": 1774509021.5438693,
       "fsm_state": "Healthy",
       "fsm_state_after": "Degraded",
       "fsm_transition": "Healthy\u2192Degraded",
@@ -28,7 +28,7 @@
     "escalate"
   ],
   "correct": true,
-  "decision_latency_ns": 8166,
+  "decision_latency_ns": 7459,
   "injected_event_count": 1,
-  "timestamp": 1774508194.3744285
+  "timestamp": 1774509021.5438716
 }

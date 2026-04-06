@@ -17,7 +17,7 @@
       "fsm_state_after": "Healthy",
       "fsm_transition": null,
       "blocked_reason": null,
-      "timestamp": 1774508279.8502054,
+      "timestamp": 1774509021.522219,
       "variant": "stateful_no_confidence",
       "phase": 0
     },
@@ -33,7 +33,7 @@
       "fsm_state_after": "Healthy",
       "fsm_transition": null,
       "blocked_reason": null,
-      "timestamp": 1774508279.8502078,
+      "timestamp": 1774509021.5222218,
       "variant": "stateful_no_confidence",
       "phase": 1
     }
@@ -44,8 +44,8 @@
     "checkpoint_and_restart"
   ],
   "correct": false,
-  "decision_latency_ns": 5083,
+  "decision_latency_ns": 6875,
   "injected_event_count": 3,
-  "timestamp": 1774508279.8502102,
+  "timestamp": 1774509021.5222247,
   "window_seconds": 60
 }

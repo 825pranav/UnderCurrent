@@ -14,7 +14,7 @@
         "process_exit"
       ],
       "dag_pattern": "process_failure",
-      "timestamp": 1774508194.3785565,
+      "timestamp": 1774509021.565888,
       "decision_latency_ns": 1166,
       "phase": 0
     }
@@ -26,5 +26,5 @@
   "correct": true,
   "decision_latency_ns": 2833,
   "injected_event_count": 1,
-  "timestamp": 1774508194.3785574
+  "timestamp": 1774509021.5658891
 }

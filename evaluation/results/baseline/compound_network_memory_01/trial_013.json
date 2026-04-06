@@ -1,0 +1,31 @@
+{
+  "scenario_id": "compound_network_memory_01",
+  "controller": "baseline",
+  "trial_idx": 13,
+  "seed": 55,
+  "decisions": [
+    {
+      "container": "sim-s-compound-net-mem",
+      "score": -1.0,
+      "action": "reschedule",
+      "reason": "process_exit detected (1 event(s))",
+      "mode": "real",
+      "kernel_signals": [
+        "process_exit",
+        "tcp_connect_fail"
+      ],
+      "dag_pattern": "process_failure",
+      "timestamp": 1774509021.5904129,
+      "decision_latency_ns": 2666,
+      "phase": 0
+    }
+  ],
+  "expected_action": "reschedule",
+  "expected_sequence": [
+    "reschedule"
+  ],
+  "correct": true,
+  "decision_latency_ns": 4667,
+  "injected_event_count": 6,
+  "timestamp": 1774509021.590414
+}

@@ -1,0 +1,34 @@
+{
+  "scenario_id": "volume_lost_01",
+  "controller": "stateful",
+  "trial_idx": 14,
+  "seed": 56,
+  "decisions": [
+    {
+      "container": "sim-f-vollost",
+      "score": 0.97,
+      "action": "escalate",
+      "reason": "score 0.97 >= escalate threshold 0.95",
+      "timestamp": 1774509021.545817,
+      "fsm_state": "Healthy",
+      "fsm_state_after": "Degraded",
+      "fsm_transition": "Healthy\u2192Degraded",
+      "reversibility": "conditional",
+      "kernel_signals": [
+        "volume_mount_lost"
+      ],
+      "dag_pattern": "io_degradation_critical",
+      "blocked_reason": null,
+      "mode": "real",
+      "phase": 0
+    }
+  ],
+  "expected_action": "escalate",
+  "expected_sequence": [
+    "escalate"
+  ],
+  "correct": true,
+  "decision_latency_ns": 7917,
+  "injected_event_count": 1,
+  "timestamp": 1774509021.5458198
+}

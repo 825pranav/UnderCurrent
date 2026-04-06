@@ -165,7 +165,7 @@ class EventListener:
         from bcc import BPF
         self.b = BPF(text=_BPF_PROGRAM)
         self.b.attach_kprobe(event="blk_account_io_start",       fn_name="trace_blk_start")
-        self.b.attach_kprobe(event="blk_account_io_completion",  fn_name="trace_blk_done")
+        self.b.attach_kprobe(event="blk_account_io_done",  fn_name="trace_blk_done")
         self.b.attach_kretprobe(event="vfs_write", fn_name="trace_vfs_write_ret")
         self.b.attach_kretprobe(event="vfs_read",  fn_name="trace_vfs_read_ret")
         print("[undercurrent-f] stateful event_listener started", flush=True)

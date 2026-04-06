@@ -14,8 +14,8 @@
         "tcp_connect_fail"
       ],
       "dag_pattern": "nominal",
-      "timestamp": 1774508194.3846846,
-      "decision_latency_ns": 1125,
+      "timestamp": 1774509021.5931218,
+      "decision_latency_ns": 1625,
       "phase": 0
     }
   ],
@@ -24,7 +24,7 @@
     "no_action"
   ],
   "correct": true,
-  "decision_latency_ns": 2208,
+  "decision_latency_ns": 3250,
   "injected_event_count": 2,
-  "timestamp": 1774508194.3846855
+  "timestamp": 1774509021.593123
 }

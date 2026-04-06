@@ -1,0 +1,51 @@
+{
+  "scenario_id": "vfs_errors_01",
+  "controller": "stateful_no_confidence",
+  "variant": "stateful_no_confidence",
+  "trial_idx": 4,
+  "seed": 46,
+  "decisions": [
+    {
+      "container": "sim-f-vfserr",
+      "score": 0.3,
+      "action": "no_action",
+      "reason": "score 0.3 below all thresholds",
+      "mode": "real",
+      "dag_pattern": "nominal",
+      "kernel_signals": [],
+      "fsm_state": "Healthy",
+      "fsm_state_after": "Healthy",
+      "fsm_transition": null,
+      "blocked_reason": null,
+      "timestamp": 1774509021.5224888,
+      "variant": "stateful_no_confidence",
+      "phase": 0
+    },
+    {
+      "container": "sim-f-vfserr",
+      "score": 0.3,
+      "action": "no_action",
+      "reason": "score 0.3 below all thresholds",
+      "mode": "real",
+      "dag_pattern": "nominal",
+      "kernel_signals": [],
+      "fsm_state": "Healthy",
+      "fsm_state_after": "Healthy",
+      "fsm_transition": null,
+      "blocked_reason": null,
+      "timestamp": 1774509021.5224922,
+      "variant": "stateful_no_confidence",
+      "phase": 1
+    }
+  ],
+  "expected_action": "checkpoint_and_restart",
+  "expected_sequence": [
+    "flush_io_queue",
+    "checkpoint_and_restart"
+  ],
+  "correct": false,
+  "decision_latency_ns": 23833,
+  "injected_event_count": 3,
+  "timestamp": 1774509021.522495,
+  "window_seconds": 60
+}

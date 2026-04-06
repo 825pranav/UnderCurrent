@@ -1,0 +1,46 @@
+{
+  "scenario_id": "cascade_io_volume_01",
+  "controller": "baseline",
+  "trial_idx": 24,
+  "seed": 66,
+  "decisions": [
+    {
+      "container": "sim-f-cascade",
+      "score": -1.0,
+      "action": "flush_io_queue",
+      "reason": "5 high-latency blk_io events",
+      "mode": "real",
+      "kernel_signals": [
+        "blk_io_latency_high"
+      ],
+      "dag_pattern": "io_degradation_minor",
+      "timestamp": 1774509021.6029475,
+      "decision_latency_ns": 2375,
+      "phase": 0
+    },
+    {
+      "container": "sim-f-cascade",
+      "score": -1.0,
+      "action": "escalate",
+      "reason": "unresolved volume_mount_lost",
+      "mode": "real",
+      "kernel_signals": [
+        "blk_io_latency_high",
+        "volume_mount_lost"
+      ],
+      "dag_pattern": "io_degradation_critical",
+      "timestamp": 1774509021.6029515,
+      "decision_latency_ns": 2250,
+      "phase": 1
+    }
+  ],
+  "expected_action": "escalate",
+  "expected_sequence": [
+    "flush_io_queue",
+    "escalate"
+  ],
+  "correct": true,
+  "decision_latency_ns": 7083,
+  "injected_event_count": 6,
+  "timestamp": 1774509021.6029534
+}

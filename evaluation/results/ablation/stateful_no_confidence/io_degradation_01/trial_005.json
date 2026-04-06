@@ -1,0 +1,51 @@
+{
+  "scenario_id": "io_degradation_01",
+  "controller": "stateful_no_confidence",
+  "variant": "stateful_no_confidence",
+  "trial_idx": 5,
+  "seed": 47,
+  "decisions": [
+    {
+      "container": "sim-f-io-degrad",
+      "score": 0.5,
+      "action": "flush_io_queue",
+      "reason": "score 0.5 >= flush threshold 0.5",
+      "mode": "real",
+      "dag_pattern": "io_degradation_minor",
+      "kernel_signals": [],
+      "fsm_state": "Healthy",
+      "fsm_state_after": "Audited",
+      "fsm_transition": "Degraded\u2192Audited",
+      "blocked_reason": null,
+      "timestamp": 1774509021.5169253,
+      "variant": "stateful_no_confidence",
+      "phase": 0
+    },
+    {
+      "container": "sim-f-io-degrad",
+      "score": 0.5,
+      "action": "flush_io_queue",
+      "reason": "score 0.5 >= flush threshold 0.5",
+      "mode": "real",
+      "dag_pattern": "io_degradation_minor",
+      "kernel_signals": [],
+      "fsm_state": "Audited",
+      "fsm_state_after": "Audited",
+      "fsm_transition": null,
+      "blocked_reason": null,
+      "timestamp": 1774509021.5169294,
+      "variant": "stateful_no_confidence",
+      "phase": 1
+    }
+  ],
+  "expected_action": "flush_io_queue",
+  "expected_sequence": [
+    "flush_io_queue",
+    "checkpoint_and_restart"
+  ],
+  "correct": false,
+  "decision_latency_ns": 11417,
+  "injected_event_count": 5,
+  "timestamp": 1774509021.516933,
+  "window_seconds": 60
+}

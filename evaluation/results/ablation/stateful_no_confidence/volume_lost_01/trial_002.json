@@ -17,7 +17,7 @@
       "fsm_state_after": "Healthy",
       "fsm_transition": null,
       "blocked_reason": null,
-      "timestamp": 1774508279.8499887,
+      "timestamp": 1774509021.5194862,
       "variant": "stateful_no_confidence",
       "phase": 0
     }
@@ -27,8 +27,8 @@
     "escalate"
   ],
   "correct": false,
-  "decision_latency_ns": 3459,
+  "decision_latency_ns": 3000,
   "injected_event_count": 1,
-  "timestamp": 1774508279.84999,
+  "timestamp": 1774509021.5194871,
   "window_seconds": 60
 }

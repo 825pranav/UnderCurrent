@@ -12,8 +12,7 @@ const TAB_LABELS = {
 
 export default function TopBar({ searchQuery, setSearchQuery, activeTab, traces, stats }) {
   return (
-    <header className="fixed top-0 right-0 w-[calc(100%-16rem)] z-40 h-20 flex items-center justify-between px-10 no-print"
-            style={{ background: "rgba(16,19,26,0.85)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(65,71,84,0.3)" }}>
+    <header className="topbar-glass fixed top-0 right-0 w-[calc(100%-16rem)] z-40 h-20 flex items-center justify-between px-10 no-print">
 
       {/* Left: breadcrumb + search */}
       <div className="flex items-center gap-6">

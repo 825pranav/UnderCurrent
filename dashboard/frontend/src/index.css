@@ -2,11 +2,111 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Light mode (default) ── */
+:root {
+  --color-background:               #f4f9ff;
+  --color-surface:                  #f4f9ff;
+  --color-surface-dim:              #dce3ee;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low:    #eef1f8;
+  --color-surface-container:        #e8eaf1;
+  --color-surface-container-high:   #e3e5eb;
+  --color-surface-container-highest:#dde0e6;
+  --color-surface-bright:           #f4f9ff;
+  --color-surface-variant:          #dde3ea;
+  --color-on-surface:               #171d22;
+  --color-on-surface-variant:       #41484f;
+  --color-on-background:            #171d22;
+  --color-primary:                  #006875;
+  --color-primary-container:        #a0f0ff;
+  --color-on-primary:               #ffffff;
+  --color-on-primary-container:     #001f24;
+  --color-secondary:                #555d6a;
+  --color-secondary-container:      #d9e3f3;
+  --color-on-secondary:             #ffffff;
+  --color-on-secondary-container:   #121c29;
+  --color-tertiary:                 #006c44;
+  --color-tertiary-container:       #85f5b4;
+  --color-on-tertiary:              #ffffff;
+  --color-on-tertiary-container:    #002112;
+  --color-error:                    #ba1a1a;
+  --color-error-container:          #ffdad6;
+  --color-on-error:                 #ffffff;
+  --color-on-error-container:       #410002;
+  --color-outline:                  #71787f;
+  --color-outline-variant:          #c1c8cf;
+  --color-inverse-surface:          #2c3137;
+  --color-inverse-on-surface:       #ecf0f7;
+  --color-surface-tint:             #006875;
+  --color-inverse-primary:          #4dd9ee;
+
+  --scrollbar-track:  #e8eaf1;
+  --scrollbar-thumb:  #c1c8cf;
+  --skeleton-bg:      #dde0e6;
+
+  --topbar-bg:        rgba(244, 249, 255, 0.88);
+  --topbar-border:    rgba(113, 120, 127, 0.2);
+  --glass-card-bg:    rgba(232, 234, 241, 0.7);
+  --glass-card-border:rgba(193, 200, 207, 0.5);
+  --obsidian-bg:      rgba(238, 241, 248, 0.85);
+}
+
+/* ── Dark mode ── */
+.dark {
+  --color-background:               #10131a;
+  --color-surface:                  #10131a;
+  --color-surface-dim:              #10131a;
+  --color-surface-container-lowest: #0b0e14;
+  --color-surface-container-low:    #191c22;
+  --color-surface-container:        #1d2026;
+  --color-surface-container-high:   #272a31;
+  --color-surface-container-highest:#32353c;
+  --color-surface-bright:           #363940;
+  --color-surface-variant:          #32353c;
+  --color-on-surface:               #e1e2eb;
+  --color-on-surface-variant:       #c1c6d7;
+  --color-on-background:            #e1e2eb;
+  --color-primary:                  #00daf3;
+  --color-primary-container:        #009fb2;
+  --color-primary-fixed:            #9cf0ff;
+  --color-primary-fixed-dim:        #00daf3;
+  --color-on-primary:               #00363d;
+  --color-on-primary-container:     #002f35;
+  --color-secondary:                #c3c6d1;
+  --color-secondary-container:      #454952;
+  --color-on-secondary:             #2c3039;
+  --color-on-secondary-container:   #b5b8c3;
+  --color-tertiary:                 #4ae183;
+  --color-tertiary-container:       #00a657;
+  --color-on-tertiary:              #003919;
+  --color-on-tertiary-container:    #003115;
+  --color-error:                    #ffb4ab;
+  --color-error-container:          #93000a;
+  --color-on-error:                 #690005;
+  --color-on-error-container:       #ffdad6;
+  --color-outline:                  #8b90a0;
+  --color-outline-variant:          #414754;
+  --color-inverse-surface:          #e1e2eb;
+  --color-inverse-on-surface:       #2e3037;
+  --color-surface-tint:             #00daf3;
+  --color-inverse-primary:          #006875;
+
+  --scrollbar-track:  #0b0e14;
+  --scrollbar-thumb:  #414754;
+  --skeleton-bg:      #272a31;
+
+  --topbar-bg:        rgba(16, 19, 26, 0.85);
+  --topbar-border:    rgba(65, 71, 84, 0.3);
+  --glass-card-bg:    rgba(29, 32, 38, 0.6);
+  --glass-card-border:rgba(65, 71, 84, 0.4);
+  --obsidian-bg:      rgba(29, 32, 38, 0.4);
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: #0b0e14; }
-::-webkit-scrollbar-thumb { background: #414754; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #00daf3; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-primary); }
 
 /* ── Material Symbols ── */
 .material-symbols-outlined {
@@ -14,16 +114,23 @@
   user-select: none;
 }
 
+/* ── TopBar glass ── */
+.topbar-glass {
+  background: var(--topbar-bg);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--topbar-border);
+}
+
 /* ── Glass card ── */
 .glass-card {
-  background: rgba(29, 32, 38, 0.6);
-  border: 1px solid rgba(65, 71, 84, 0.4);
+  background: var(--glass-card-bg);
+  border: 1px solid var(--glass-card-border);
   backdrop-filter: blur(12px);
 }
 
 /* ── Obsidian glass (deeper blur, used for modals/overlays) ── */
 .obsidian-glass {
-  background: rgba(29, 32, 38, 0.4);
+  background: var(--obsidian-bg);
   backdrop-filter: blur(24px);
 }
 
@@ -41,8 +148,9 @@
 /* ── Body base ── */
 body {
   font-family: 'Inter', sans-serif;
-  background-color: #10131a;
-  color: #e1e2eb;
+  background-color: var(--color-background);
+  color: var(--color-on-surface);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 h1, h2, h3, h4, h5 {
@@ -56,7 +164,7 @@ h1, h2, h3, h4, h5 {
 }
 .skeleton {
   animation: skeleton-pulse 1.5s ease-in-out infinite;
-  background: #272a31;
+  background: var(--skeleton-bg);
   border-radius: 0.25rem;
 }
 

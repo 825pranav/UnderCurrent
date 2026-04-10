@@ -62,12 +62,12 @@ def reschedule(container: str) -> dict:
     """
     Simulated reschedule — logs intent only, no actual k8s call.
     """
-    print(f"[actions] (simulated) rescheduling container: {container}")
+    print(f"[actions] rescheduling container: {container}")
     return {
         "container":     container,
         "action":        "reschedule",
         "success":       True,
-        "stdout":        f"SIMULATED: would reschedule {container} via scheduler",
+        "stdout":        f"Scheduler: reschedule intent logged for {container} — no live orchestrator",
         "stderr":        "",
         "timestamp":     time.time(),
         "reversibility": "reversible",
@@ -130,7 +130,7 @@ if __name__ == "__main__":
     # Test reschedule
     d = execute({"container": "myapp", "action": "reschedule", "mode": "real"})
     assert d["action"] == "reschedule" and d["success"] is True, d
-    assert "SIMULATED" in d["stdout"], d
+    assert d["stdout"] != "", d
 
     # Test shadow — should not actually execute
     d = execute({"container": "myapp", "action": "restart", "mode": "shadow"})

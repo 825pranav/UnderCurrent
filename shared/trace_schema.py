@@ -1,19 +1,18 @@
 # shared/trace_schema.py — UnderCurrent Shared Trace Schema Contract
 #
 # Defines the field catalogue for both Stateless (S) and Stateful (F) decision traces.
-# Schema version 1.1.0 — additive extension only; base fields are frozen.
+# Schema version 1.2.0 — additive extension only; base fields are frozen.
 #
-# RULE: Never remove or rename BASE_FIELDS — doing so breaks Pranav's trace_logger.py,
+# RULE: Never remove or rename BASE_FIELDS — doing so breaks both track loggers,
 #       both dashboards, and any downstream consumer.
 #       Only extend STATEFUL_FIELDS (absent in stateless traces → consumers must tolerate
 #       unknown fields gracefully).
 #
-# BACKWARD COMPATIBILITY NOTE: This file is imported by stateful/trace_logger.py.
-# Pranav's stateless/trace_logger.py does NOT need to import this file —
-# it already produces all BASE_FIELDS by design. This file exists purely
-# to make the contract explicit and machine-readable.
+# stateless/trace_logger.py produces all BASE_FIELDS by design and does not need to
+# import this file. stateful/trace_logger.py imports SCHEMA_VERSION from here.
+# This file exists to make the schema contract explicit and machine-readable.
 
-# ── Base fields — Pranav's established schema (frozen, do not change) ─────────
+# ── Base fields (frozen — present in all traces from both tracks) ──────────────
 BASE_FIELDS = [
     "trace_time",           # float  — wall-clock time of log write (unix timestamp)
     "container",            # str    — container / workload identifier
@@ -50,7 +49,7 @@ ALL_FIELDS = BASE_FIELDS + COMMON_EXTENSION_FIELDS + STATEFUL_FIELDS
 
 SCHEMA_VERSION = "1.2.0"
 # Version semantics:
-#   major — incompatible change (rename / remove field)  → requires Pranav sign-off
+#   major — incompatible change (rename / remove field)  → requires review before merge
 #   minor — new field group added                        → backward compatible
 #   patch — documentation / comment update only
 # 1.2.0 — node_type, kernel_signals, dag_pattern promoted to COMMON_EXTENSION_FIELDS

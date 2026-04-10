@@ -2,7 +2,7 @@
 
 **A Risk-Aware Autonomic Control Plane** — monitors containerised workloads at the kernel level, scores failure risk in real time, and automatically triggers corrective actions without human intervention. Two parallel tracks: **Stateless (Type S)** and **Stateful (Type F)**.
 
-**Authors:** Pranav Negi · Reema Rao
+**Authors:** Pranav Negi · Reema Sarkar
 
 ---
 

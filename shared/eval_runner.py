@@ -119,32 +119,48 @@ def run(out_path: str = _DEFAULT_OUT) -> dict:
         stateful_div_log=_PATHS["stateful_div_log"],
     )
 
-    # ── Caveats — structural gaps in the data ─────────────────────────────────
-    caveats = [
-        (
-            "stateless.divergence_rate is 0.0 because stateless/divergence_log.jsonl "
-            "does not exist. The stateless controller does not track shadow divergences."
-        ),
-        (
-            "stateless traces include real system processes (firefox threads, snap, bash, "
-            "etc.) not controlled fault scenarios. MTTR for stateless reflects real-system "
-            "process lifecycle, not injected fault recovery."
-        ),
-        (
-            "explanation_completeness.all is 0.7372 because 3,323 stateless real entries "
-            "lack node_type and are excluded from the 'S'-typed subset used for the metric. "
-            "explanation_completeness.stateless=1.0 applies only to the 5,380 entries with "
-            "node_type='S'."
-        ),
-        (
-            "No ablation variants have been run. See stateful/ablation.py for score-replay "
-            "ablation results."
-        ),
-        (
-            "No sensitivity sweep has been run. See shared/sensitivity.py for threshold "
-            "sweep results."
-        ),
-    ]
+    # ── Caveats — structural gaps in the data (computed dynamically) ──────────
+    caveats = []
+
+    sl_missing_node_type = sum(1 for t in sl if not t.get("node_type"))
+    sf_missing_node_type = sum(1 for t in sf if not t.get("node_type"))
+    if sl_missing_node_type > 0:
+        caveats.append(
+            f"{sl_missing_node_type} stateless entries lack node_type (written before "
+            "schema 1.2.0). These are excluded from per-track metrics but included in "
+            "'all' computations, which may lower explanation_completeness.all."
+        )
+    if sf_missing_node_type > 0:
+        caveats.append(
+            f"{sf_missing_node_type} stateful entries lack node_type (written before "
+            "schema 1.2.0)."
+        )
+
+    sl_missing_dag = sum(
+        1 for t in sl if t.get("mode") == "real" and not t.get("dag_pattern")
+    )
+    if sl_missing_dag > 0:
+        caveats.append(
+            f"{sl_missing_dag} stateless real entries lack dag_pattern; these entries "
+            "fail the explanation_completeness check and lower M5."
+        )
+
+    if not os.path.exists(_PATHS["stateless_div_log"]):
+        caveats.append(
+            "stateless/divergence_log.jsonl does not exist — stateless divergence_rate "
+            "is 0.0. The stateless controller does not write a divergence log because "
+            "real and shadow paths always agree (same pure-threshold DAG, no FSM state)."
+        )
+
+    caveats.append(
+        "stateless traces include real system processes (kernel process_exit events "
+        "from non-container processes) captured by the eBPF listener. Stateless MTTR "
+        "reflects real-system process lifecycle, not injected fault recovery."
+    )
+    caveats.append(
+        "mttr uses trace_time (log-write time). For decision_timestamp-based MTTR "
+        "on real traces, run shared/real_metrics_report.py instead."
+    )
 
     # ── Assemble output ────────────────────────────────────────────────────────
     result = {

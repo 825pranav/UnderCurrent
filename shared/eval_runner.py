@@ -9,8 +9,7 @@
 #   stateful/divergence_log.jsonl — shadow/real divergence records (stateful only)
 #
 # No stateless/divergence_log.jsonl exists; stateless divergence_rate is 0.0.
-# stateless traces lack the 'reversibility' field → reversibility_ratio is 0.0
-# for stateless (structural gap, not a measured result).
+# stateless traces include a 'reversibility' field; reversibility_ratio is measured.
 #
 # Usage (from repo root):
 #   python3 shared/eval_runner.py
@@ -122,11 +121,6 @@ def run(out_path: str = _DEFAULT_OUT) -> dict:
 
     # ── Caveats — structural gaps in the data ─────────────────────────────────
     caveats = [
-        (
-            "stateless.reversibility_ratio is 0.0 because stateless/actions.py "
-            "does not log a 'reversibility' field in trace entries. "
-            "This is a schema gap, not a measured result."
-        ),
         (
             "stateless.divergence_rate is 0.0 because stateless/divergence_log.jsonl "
             "does not exist. The stateless controller does not track shadow divergences."

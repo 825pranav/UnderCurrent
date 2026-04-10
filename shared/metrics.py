@@ -142,16 +142,25 @@ def divergence_rate_from_traces(
 
 # ── Metric 3: Mean Time To Recovery (MTTR) ────────────────────────────────────
 
-def mttr(traces: list, node_type: str = None) -> float:
+def mttr(traces: list, node_type: str = None,
+         timestamp_field: str = "trace_time") -> float:
     """
     Mean time from fault onset to recovery, in seconds.
 
     Algorithm per container (using real-mode traces only):
-      1. Sort by trace_time.
+      1. Sort by timestamp_field.
       2. Fault onset  = first trace where action != 'no_action'.
       3. Recovery     = first subsequent trace where action == 'no_action'.
-      4. MTTR sample  = recovery.trace_time - onset.trace_time.
+      4. MTTR sample  = recovery_timestamp - onset_timestamp.
       5. Average across all complete onset→recovery pairs found.
+
+    timestamp_field: field to use for timing. Default "trace_time" (log-write
+      time, set after action execution). Use "decision_timestamp" for real
+      traces to measure time from when the decision was made, not when the
+      log entry was written — more accurate when actions take wall-clock time
+      to execute (e.g. docker restart).
+
+    Traces with a null or zero value for timestamp_field are skipped.
 
     Containers that are faulted but never recover within the trace window
     are excluded from the average (not counted as infinite MTTR).
@@ -163,17 +172,18 @@ def mttr(traces: list, node_type: str = None) -> float:
 
     by_container: dict = {}
     for t in filtered:
-        c = t.get("container")
-        if c:
+        c  = t.get("container")
+        ts = t.get(timestamp_field)
+        if c and ts:   # skip entries with missing/null timestamp
             by_container.setdefault(c, []).append(t)
 
     samples = []
     for c, events in by_container.items():
-        events_sorted = sorted(events, key=lambda x: x.get("trace_time", 0))
+        events_sorted = sorted(events, key=lambda x: float(x.get(timestamp_field, 0)))
         onset_time = None
         for ev in events_sorted:
             action = ev.get("action", "no_action")
-            tt     = float(ev.get("trace_time", 0))
+            tt     = float(ev.get(timestamp_field, 0))
             if onset_time is None and action != "no_action":
                 onset_time = tt
             elif onset_time is not None and action == "no_action":
@@ -290,6 +300,7 @@ def compute_all(
     stateful_trace_file:  str,
     stateless_div_log:    str,
     stateful_div_log:     str,
+    mttr_timestamp_field: str = "trace_time",
 ) -> dict:
     """
     Load all trace and divergence files, compute every research metric.
@@ -316,9 +327,9 @@ def compute_all(
         ),
 
         "mttr": {
-            "all":       mttr(all_traces),
-            "stateless": mttr(all_traces, node_type="S"),
-            "stateful":  mttr(all_traces, node_type="F"),
+            "all":       mttr(all_traces, timestamp_field=mttr_timestamp_field),
+            "stateless": mttr(all_traces, node_type="S", timestamp_field=mttr_timestamp_field),
+            "stateful":  mttr(all_traces, node_type="F", timestamp_field=mttr_timestamp_field),
         },
 
         "reversibility_ratio": {

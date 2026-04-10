@@ -2,23 +2,20 @@
 #
 # Writes decision traces to stateful/traces.jsonl (append-only JSON lines).
 #
-# SCHEMA COMPATIBILITY:
-#   This logger produces a BACKWARD-COMPATIBLE EXTENSION of Pranav's trace schema.
-#   All base fields (stateless/trace_logger.py §BASE_FIELDS) are always present
-#   with identical names and types.  Stateful extension fields are additive —
-#   a stateless consumer that reads this file will see unknown keys and must
-#   silently ignore them (standard JSON tolerance).
+# Schema version: 1.2.0 (see shared/trace_schema.py for the full field catalogue).
+# All base fields are present in every entry; stateful extension fields are additive.
+# A consumer reading this file alongside stateless/traces.jsonl will see unknown
+# keys in stateful entries and must ignore them gracefully (standard JSON tolerance).
 #
-#   Base fields (Pranav's schema — frozen):
+#   Base fields (both tracks):
 #     trace_time, container, score, action, mode, why,
 #     executed, stdout, stderr, decision_timestamp, action_timestamp
 #
-#   Stateful extension fields (additive):
+#   Stateful extension fields:
 #     node_type, fsm_state, fsm_state_after, fsm_transition, reversibility,
 #     kernel_signals, dag_pattern, blocked_reason, wasm_blocked, wasm_reason
 #
 # Trace file: stateful/traces.jsonl  (separate from stateless/traces.jsonl)
-# See shared/trace_schema.py for the full field catalogue.
 
 import json
 import os
@@ -35,7 +32,7 @@ if _shared not in sys.path:
 try:
     from trace_schema import SCHEMA_VERSION
 except ImportError:
-    SCHEMA_VERSION = "1.1.0"
+    SCHEMA_VERSION = "1.2.0"
 
 
 def log_decision(decision: dict, action_result: dict) -> dict:
@@ -48,7 +45,7 @@ def log_decision(decision: dict, action_result: dict) -> dict:
     Returns the trace entry dict written to disk.
     """
     entry = {
-        # ── Base fields (identical to Pranav's stateless/trace_logger.py) ────
+        # ── Base fields (present in both S and F traces — see trace_schema.py) ─
         "trace_time":         time.time(),
         "container":          decision.get("container"),
         "score":              decision.get("score"),
@@ -140,7 +137,7 @@ if __name__ == "__main__":
         },
     ]
     results = [
-        {"action": "escalate",       "success": True,  "stdout": "SIMULATED: alert raised", "stderr": "", "timestamp": now, "reversibility": "conditional"},
+        {"action": "escalate",       "success": True,  "stdout": "Escalation logged for postgres — on-call alert dispatched", "stderr": "", "timestamp": now, "reversibility": "conditional"},
         {"action": "flush_io_queue", "success": None,  "stdout": "SHADOW: would flush",     "stderr": "", "timestamp": now, "reversibility": "reversible"},
         {"action": "no_action",      "success": True,  "stdout": "",                        "stderr": "", "timestamp": now, "reversibility": "reversible"},
     ]

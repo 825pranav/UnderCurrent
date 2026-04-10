@@ -48,15 +48,7 @@ _PRIORITY = {
 
 
 def _primary_action(decisions: list) -> str:
-    """
-    Return the highest-priority action from a list of decision dicts.
-
-    Args:
-        decisions: list of decision dicts.
-
-    Returns:
-        Highest-priority action string, or 'no_action' if decisions is empty.
-    """
+    """Return the highest-priority action from a list of decision dicts."""
     best, best_p = "no_action", 0
     for d in decisions:
         a = d.get("action", "no_action")
@@ -68,27 +60,11 @@ def _primary_action(decisions: list) -> str:
 
 def estimate_mttr_from_trial(trial: dict) -> float:
     """
-    Estimate MTTR (in seconds) from a single trial result dict.
+    MTTR proxy (seconds) from a trial result dict.
 
-    MTTR estimation method:
-      - The trial injects a fault and records the time from the first injected
-        event to the last injected event (fault_duration_proxy).
-      - The decision latency (decision_latency_ns) is the time from the start
-        of the reconcile call to its completion.
-      - MTTR proxy = (time_of_last_event - time_of_first_event) + decision_latency_s
-        This approximates the time from fault onset to when a remediation decision
-        was reached and would begin executing.
-      - For trials where the controller took no action (missed fault), MTTR is
-        undefined and this function returns None.
-
-    Note: This is a proxy metric derived from trial metadata. True MTTR requires
-    real container lifecycle timestamps (fault injection time → healthy state restored).
-
-    Args:
-        trial: trial result dict as produced by run_trials.py.
-
-    Returns:
-        MTTR estimate in seconds, or None if the fault was not acted upon.
+    Proxy = fault_onset_estimate + decision_latency.
+    fault_onset_estimate = injected_event_count * 0.1 s (conservative; at least 50 ms).
+    Returns None if the controller did not act (missed fault or no_action expected).
     """
     # Only count trials where the controller correctly identified the fault
     if not trial.get("correct", False):
@@ -104,13 +80,6 @@ def estimate_mttr_from_trial(trial: dict) -> float:
     if primary == "no_action":
         return None
 
-    # Compute fault duration proxy from event timestamps
-    all_times = []
-    for d in decisions:
-        # decisions don't carry event timestamps directly; use injected events count
-        pass
-
-    # Simpler proxy: use decision_latency_ns as the MTTR lower bound
     latency_ns  = trial.get("decision_latency_ns", 0)
     latency_s   = latency_ns / 1e9
 
@@ -165,19 +134,7 @@ def compute_mttr_samples(trials: list) -> dict:
 # ── Distribution statistics ───────────────────────────────────────────────────
 
 def compute_distribution_stats(samples: list) -> dict:
-    """
-    Compute summary statistics for a MTTR sample distribution.
-
-    Computes mean, median, standard deviation, and percentiles (p5, p25, p75, p95).
-    Returns zero-filled dict if fewer than 2 samples are available.
-
-    Args:
-        samples: list of MTTR values (seconds).
-
-    Returns:
-        Dict with keys: n, mean, median, std, p5, p25, p75, p95.
-        All values are in seconds, rounded to 6 decimal places.
-    """
+    """Summary statistics (mean, median, std, p5/p25/p75/p95) for a MTTR sample list."""
     n = len(samples)
     if n == 0:
         return {"n": 0, "mean": 0.0, "median": 0.0, "std": 0.0,
@@ -208,20 +165,7 @@ def compute_distribution_stats(samples: list) -> dict:
 # ── Histogram ─────────────────────────────────────────────────────────────────
 
 def compute_histogram(samples: list, n_bins: int = 20) -> list:
-    """
-    Compute a 20-bin histogram of MTTR values for plotting.
-
-    Bins are uniformly spaced between min(samples) and max(samples).
-    Returns an empty list if fewer than 2 samples are provided.
-
-    Args:
-        samples: list of MTTR float values (seconds).
-        n_bins:  number of histogram bins (default: 20).
-
-    Returns:
-        List of bin dicts, each with keys: bin_left, bin_right, count, frequency.
-        frequency = count / total_samples.
-    """
+    """Uniformly-spaced histogram of MTTR values. Returns list of bin dicts."""
     if len(samples) < 2:
         return []
 
@@ -257,18 +201,7 @@ def compute_histogram(samples: list, n_bins: int = 20) -> list:
 # ── I/O helpers ───────────────────────────────────────────────────────────────
 
 def load_all_trials(results_dir: str) -> list:
-    """
-    Recursively load all trial JSON files from the results directory tree.
-
-    Skips files under the 'ablation' subdirectory to avoid mixing ablation
-    and main trial data.
-
-    Args:
-        results_dir: root directory path.
-
-    Returns:
-        Flat list of trial result dicts.
-    """
+    """Load trial JSON files from results_dir, skipping the ablation subdirectory."""
     pattern = os.path.join(results_dir, "*", "*", "trial_*.json")
     paths   = sorted(_glob.glob(pattern))
     trials  = []
@@ -285,7 +218,6 @@ def load_all_trials(results_dir: str) -> list:
 
 
 def _write_csv(path: str, rows: list, fieldnames: list) -> None:
-    """Write rows to a CSV file, creating parent directories as needed."""
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames, extrasaction="ignore")

@@ -103,7 +103,7 @@ class StatefulStateStore:
             "count":      len(latencies),
             "mean_us":    round(sum(latencies) / len(latencies), 1),
             "max_us":     max(latencies),
-            "high_count": sum(1 for l in latencies if l >= IO_HIGH_LATENCY_US),
+            "high_count": sum(1 for lat in latencies if lat >= IO_HIGH_LATENCY_US),
         }
 
     def is_volume_mounted(self, container: str) -> bool:

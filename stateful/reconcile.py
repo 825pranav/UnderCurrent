@@ -7,14 +7,12 @@
 # Key differences from stateless/reconcile.py:
 #   1. Accepts a ContainerFSM instance — all decisions are FSM-gated.
 #   2. Reversibility gate — irreversible actions are always blocked before dispatch.
-#   3. Decision dict is a backward-compatible EXTENSION of Pranav's schema:
+#   3. Decision dict is a backward-compatible extension of the base trace schema:
 #      all base fields present + stateful fields (fsm_state, fsm_transition, …).
 #   4. Shadow mode logs divergence between ideal and actual actuation paths.
 #
-# INTEGRATION NOTE:
-#   Pranav's signature: reconcile(state_store, shadow=False)
-#   This signature:     reconcile(state_store, fsm, shadow=False)
-#   The extra `fsm` parameter is stateful-specific — see INTEGRATION_SPEC.md §3.
+# Signature: reconcile(state_store, fsm, shadow=False)
+# The extra `fsm` parameter is stateful-specific; the stateless track omits it.
 
 import time
 

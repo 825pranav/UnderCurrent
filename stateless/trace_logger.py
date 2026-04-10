@@ -68,7 +68,7 @@ def read_traces(n: int = None) -> list:
     if not os.path.exists(TRACE_FILE):
         return []
     with open(TRACE_FILE) as f:
-        lines = [json.loads(l) for l in f if l.strip()]
+        lines = [json.loads(ln) for ln in f if ln.strip()]
     return lines[-n:] if n else lines
 
 
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     ]
 
     action_results = [
-        {"action": "reschedule", "success": True,  "stdout": "SIMULATED: would reschedule nginx", "stderr": "", "timestamp": now},
+        {"action": "reschedule", "success": True,  "stdout": "Scheduler: reschedule intent logged for nginx — no live orchestrator", "stderr": "", "timestamp": now},
         {"action": "restart",    "success": None,  "stdout": "SHADOW: would run restart",         "stderr": "", "timestamp": now, "mode": "shadow"},
         {"action": "no_action",  "success": True,  "stdout": "",                                  "stderr": "", "timestamp": now},
     ]

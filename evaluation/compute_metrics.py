@@ -41,22 +41,7 @@ except Exception:
 # ── Confusion matrix helpers ──────────────────────────────────────────────────
 
 def _classify_decision(action: str, expected_action: str) -> str:
-    """
-    Map a single (action, expected_action) pair to a confusion matrix cell.
-
-    Classification rules:
-      TP: action != 'no_action' AND expected != 'no_action' (correctly acted)
-      TN: action == 'no_action' AND expected == 'no_action' (correctly inactive)
-      FP: action != 'no_action' AND expected == 'no_action' (spurious action)
-      FN: action == 'no_action' AND expected != 'no_action' (missed fault)
-
-    Args:
-        action:          the action taken by the controller.
-        expected_action: the ground-truth expected action from the scenario.
-
-    Returns:
-        One of 'TP', 'TN', 'FP', 'FN'.
-    """
+    """Map (action, expected) → confusion matrix cell: TP / TN / FP / FN."""
     acted    = action != "no_action"
     expected = expected_action != "no_action"
     if acted and expected:
@@ -118,18 +103,7 @@ def compute_confusion_matrices(trials: list) -> dict:
 
 
 def _primary_action_from_trial(trial: dict) -> str:
-    """
-    Extract the highest-priority action from a trial's decisions list.
-
-    Priority (highest first): escalate, reschedule, checkpoint_and_restart,
-    restart, flush_io_queue, no_action.
-
-    Args:
-        trial: trial result dict.
-
-    Returns:
-        The highest-priority action string.
-    """
+    """Return the highest-priority action from a trial's decisions list."""
     _PRIORITY = {
         "escalate":               6,
         "reschedule":             5,
@@ -152,22 +126,7 @@ def _primary_action_from_trial(trial: dict) -> str:
 # ── Wilcoxon / sign-test helpers ──────────────────────────────────────────────
 
 def _sign_test_fallback(x: list, y: list) -> tuple:
-    """
-    A simple sign test used when scipy is unavailable.
-
-    Counts the number of differences with positive and negative sign,
-    then uses a binomial approximation to compute a p-value.
-
-    This is a conservative fallback; the Wilcoxon signed-rank test (used when
-    scipy is available) is more powerful for continuous paired data.
-
-    Args:
-        x: list of numeric values for condition A.
-        y: list of numeric values for condition B.
-
-    Returns:
-        Tuple (p_value, statistic) where p_value is approximate.
-    """
+    """Sign-test fallback when scipy is unavailable. Returns (p_value, statistic)."""
     diffs = [xi - yi for xi, yi in zip(x, y) if xi != yi]
     if not diffs:
         return 1.0, 0.0
@@ -182,35 +141,12 @@ def _sign_test_fallback(x: list, y: list) -> tuple:
 
 
 def _norm_cdf(z: float) -> float:
-    """
-    Standard normal CDF via the error function.
-
-    Args:
-        z: standard normal variate.
-
-    Returns:
-        Probability P(Z <= z).
-    """
     import math
     return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
 
 
 def _cohens_d(a: list, b: list) -> float:
-    """
-    Compute Cohen's d effect size between two samples.
-
-    Formula: (mean_a - mean_b) / pooled_std
-
-    A pooled standard deviation of zero implies identical distributions;
-    returns 0.0 in that case.
-
-    Args:
-        a: first sample (list of numeric values).
-        b: second sample (list of numeric values).
-
-    Returns:
-        Cohen's d as a float; may be negative.
-    """
+    """Cohen's d effect size: (mean_a - mean_b) / pooled_std."""
     if len(a) < 2 or len(b) < 2:
         return 0.0
     mean_a = statistics.mean(a)
@@ -385,18 +321,7 @@ def compute_latency_stats(trials: list) -> dict:
 # ── I/O helpers ───────────────────────────────────────────────────────────────
 
 def load_all_trials(results_dir: str) -> list:
-    """
-    Recursively load all trial JSON files from the results directory tree.
-
-    Expects the directory layout produced by run_trials.py:
-      {results_dir}/{controller}/{scenario_id}/trial_*.json
-
-    Args:
-        results_dir: root directory path as a string.
-
-    Returns:
-        Flat list of trial result dicts, sorted by (controller, scenario_id, trial_idx).
-    """
+    """Load all trial JSON files from {results_dir}/{controller}/{scenario_id}/trial_*.json."""
     pattern = os.path.join(results_dir, "*", "*", "trial_*.json")
     paths   = sorted(_glob.glob(pattern))
     trials  = []
@@ -410,14 +335,6 @@ def load_all_trials(results_dir: str) -> list:
 
 
 def _write_csv(path: str, rows: list, fieldnames: list) -> None:
-    """
-    Write a list of dicts to a CSV file.
-
-    Args:
-        path:       destination file path.
-        rows:       list of dicts to write.
-        fieldnames: ordered list of column names.
-    """
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames, extrasaction="ignore")

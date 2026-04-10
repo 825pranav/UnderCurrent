@@ -2,7 +2,7 @@
 
 **A Risk-Aware Autonomic Control Plane** — monitors containerised workloads at the kernel level, scores failure risk in real time, and automatically triggers corrective actions without human intervention. Two parallel tracks: **Stateless (Type S)** and **Stateful (Type F)**.
 
-**Authors:** Pranav Negi (Stateless / Type S) · Reema (Stateful / Type F)
+**Authors:** Pranav Negi · Reema Rao
 
 ---
 
@@ -82,19 +82,16 @@ The shadow path uses a **fresh FSM** each cycle, so it diverges from the real FS
 
 ```
 UnderCurrent/
-├── stateless/                   ← Type S control plane (Pranav)
+├── stateless/                   ← Type S control plane
 │   ├── main.py                  orchestrator — full pipeline
 │   ├── event_listener.py        eBPF kernel event capture
 │   ├── state_store.py           60s sliding-window failure tracker
 │   ├── confidence.py            risk scorer (0.0–1.0)
 │   ├── reconcile.py             decision DAG + shadow controller
 │   ├── actions.py               restart / reschedule executor
-│   ├── trace_logger.py          append-only JSON-line audit log
-│   ├── dashboard.py             Rich live terminal dashboard
-│   ├── streamlit_dashboard.py   Streamlit web dashboard (port 8501)
-│   └── testing/                 dataset evaluation framework (RCAEval / Alibaba)
+│   └── trace_logger.py          append-only JSON-line audit log
 │
-├── stateful/                    ← Type F control plane (Reema)
+├── stateful/                    ← Type F control plane
 │   ├── main.py                  orchestrator — full pipeline
 │   ├── event_listener.py        eBPF kernel event capture (I/O + volume signals)
 │   ├── state_store.py           StatefulStateStore — extended event schema
@@ -103,17 +100,38 @@ UnderCurrent/
 │   ├── reconcile.py             FSM-gated decision engine + shadow controller
 │   ├── actions.py               flush / checkpoint_restart / escalate executor
 │   ├── trace_logger.py          append-only JSON-line audit log (extended schema)
-│   ├── dashboard.py             Rich live terminal dashboard
-│   └── streamlit_dashboard.py   Streamlit web dashboard (port 8502)
+│   ├── wasm_executor.py         WASM policy sandbox
+│   └── wasm/                    WAT policy modules (no_action, flush, checkpoint, escalate)
 │
-├── shared/                      ← cross-track shared contracts
-│   ├── trace_schema.py          field catalogue + schema version (1.1.0)
-│   └── constants.py             shared thresholds (single source of truth)
+├── shared/                      ← cross-track shared contracts and evaluation
+│   ├── trace_schema.py          field catalogue + schema version (1.2.0)
+│   ├── metrics.py               all 6 research metrics
+│   ├── eval_runner.py           compute metrics from trace files
+│   ├── verify_safety_gates.py   design claim verification
+│   ├── cross_eval.py            cross-controller comparison harness
+│   └── sensitivity.py           threshold sweep analysis
 │
-├── integration/                 ← unified integration layer
-│   ├── launcher.py              start both pipelines + unified dashboard
-│   └── unified_dashboard.py     single Streamlit view of both trace files
+├── evaluation/                  ← reproducible evaluation suite
+│   ├── fault_harness.py         fault scenario definitions + runner
+│   ├── baseline_controller.py   naive threshold baseline for comparison
+│   ├── run_trials.py            multi-trial experiment runner
+│   ├── compute_metrics.py       confusion matrix + pairwise statistical tests
+│   ├── distribution_analysis.py MTTR distribution analysis
+│   ├── ablation.py              ablation study (FSM / confidence variants)
+│   ├── sensitivity.py           threshold sensitivity sweep
+│   └── results/                 pre-computed CSV result files
 │
+├── integration/                 ← unified launcher and dashboard
+│   ├── launcher.py              start both pipelines + dashboard (supervised)
+│   └── unified_dashboard.py     Streamlit view of both tracks
+│
+├── dashboard/                   ← React dashboard
+│   ├── backend.py               Flask API (http://localhost:5050)
+│   └── frontend/                Vite + React + Tailwind
+│
+├── run.py                       entry point — real mode
+├── shadow.py                    entry point — shadow / dry-run mode
+├── streamlit_dash.py            entry point — Streamlit unified dashboard
 ├── requirements.txt
 └── README.md
 ```
@@ -127,10 +145,12 @@ UnderCurrent/
 ```bash
 git clone https://github.com/825pranav/UnderCurrent.git
 cd UnderCurrent
-python3 integration/launcher.py
+pip install streamlit pandas plotly wasmtime
+python3 run.py
 ```
 
-Opens both pipelines + unified dashboard at `http://localhost:8501`
+Opens both pipelines + React dashboard at `http://localhost:5050`.  
+For the Streamlit view instead: `python3 streamlit_dash.py`
 
 ---
 
@@ -139,17 +159,19 @@ Opens both pipelines + unified dashboard at `http://localhost:8501`
 **Stateless only:**
 ```bash
 cd stateless
-python3 main.py                  # both real + shadow paths every cycle
-python3 main.py --shadow         # shadow-only (dry-run, no actions fired)
-python3 main.py --interval 10    # reconcile every 10s (default: 5s)
-python3 main.py --rate 2         # one synthetic event every ~2s (default: 1.5s)
+python3 main.py                      # real mode, simulated events
+python3 main.py --mode shadow        # shadow-only (dry-run, no actions fired)
+python3 main.py --mode divergence    # both paths, log disagreements
+python3 main.py --interval 10        # reconcile every 10s (default: 5s)
+python3 main.py --rate 2             # one synthetic event every ~2s (default: 1.5s)
 ```
 
 **Stateful only:**
 ```bash
 cd stateful
-python3 main.py                  # both real + shadow paths + divergence tracking
-python3 main.py --shadow         # shadow-only (uses throwaway FSM)
+python3 main.py                      # real mode, simulated events
+python3 main.py --mode shadow        # shadow-only (uses throwaway FSM)
+python3 main.py --mode divergence    # both paths, log FSM disagreements
 python3 main.py --interval 10
 ```
 
@@ -177,29 +199,17 @@ sudo python3 stateful/main.py  --real
 
 ### React dashboard (recommended)
 ```bash
-python3 dashboard/backend.py
-# Open http://localhost:5050
+python3 run.py
+# http://localhost:5050
 ```
-Full-featured dark UI — Overview, Stateless, Stateful, Shadow, and Audit Log tabs. Includes global mode filter (All / Real / Shadow), per-process container chips, score timeline, action distribution, FSM state cards, divergence table, sortable/paginated audit log, CSV and PDF export.
+Full-featured dark UI — Overview, Stateless, Stateful, Shadow, and Audit Log tabs. Global mode filter (All / Real / Shadow), score timeline, action distribution, FSM state cards, divergence table, sortable/paginated audit log, CSV and PDF export.
 
-### Unified Streamlit dashboard
+### Streamlit unified dashboard
 ```bash
-streamlit run integration/unified_dashboard.py
+python3 streamlit_dash.py
 # http://localhost:8501
 ```
-Shows both tracks combined — score timeline, action distribution per track, FSM state panel, unified audit log.
-
-### Per-track terminal dashboards
-```bash
-python3 stateless/dashboard.py   # Rich live UI — Type S
-python3 stateful/dashboard.py    # Rich live UI — Type F
-```
-
-### Per-track web dashboards
-```bash
-streamlit run stateless/streamlit_dashboard.py   # localhost:8501
-streamlit run stateful/streamlit_dashboard.py    # localhost:8502
-```
+Shows both tracks side-by-side — score timeline, action distribution per track, FSM state panel, research metrics strip, unified audit log. Auto-refreshes every 4 seconds.
 
 ---
 
@@ -236,7 +246,7 @@ Both tracks write to their own `traces.jsonl`. Base fields are shared; stateful 
 }
 ```
 
-Schema version: `1.1.0` — see `shared/trace_schema.py`
+Schema version: `1.2.0` — see `shared/trace_schema.py`
 
 ---
 
@@ -252,7 +262,7 @@ Schema version: `1.1.0` — see `shared/trace_schema.py`
 | `reconcile.py` | Decision DAG | `reconcile(store, shadow=False)` |
 | `actions.py` | Action executor | `execute(decision)` |
 | `trace_logger.py` | Audit log | `log_decision(decision, result)` |
-| `main.py` | Orchestrator | `python3 main.py [--real] [--shadow]` |
+| `main.py` | Orchestrator | `python3 main.py [--real] [--mode shadow]` |
 
 ### Stateful (Type F)
 
@@ -265,29 +275,18 @@ Schema version: `1.1.0` — see `shared/trace_schema.py`
 | `reconcile.py` | FSM-gated DAG | `reconcile(store, fsm, shadow=False)` |
 | `actions.py` | flush / checkpoint / escalate | `execute(decision)` |
 | `trace_logger.py` | Extended audit log | `log_decision(decision, result)` |
-| `main.py` | Orchestrator | `python3 main.py [--real] [--shadow]` |
+| `main.py` | Orchestrator | `python3 main.py [--real] [--mode shadow\|divergence]` |
 
 ---
 
 ## Requirements
 
 - **Simulate mode:** Python 3.8+ — no external packages
-- **Dashboards:** `pip install rich streamlit pandas plotly`
+- **Dashboards:** `pip install streamlit pandas plotly`
 - **Real eBPF mode:** Linux kernel 4.9+, root, `bcc` system package
 - **Docker actions:** Docker daemon running
 
 See `requirements.txt` for full details.
-
----
-
-## Branches
-
-| Branch | Contents |
-|---|---|
-| `main` | Both tracks, shared contracts, Streamlit + terminal dashboards |
-| `react` | + React dashboard (`dashboard/`) — Flask backend + Vite frontend |
-| `integration` | + unified launcher and unified Streamlit dashboard |
-| `dataset-evaluation` | + RCAEval / Alibaba evaluation framework |
 
 ---
 

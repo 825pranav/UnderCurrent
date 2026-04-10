@@ -1,17 +1,18 @@
-# shared/verify_safety_gates.py — Safety Gate and Design Doc Verification
+# shared/verify_safety_gates.py — Safety Gate Verification
 #
-# Verifies two claims from the design document against actual running code:
+# Verifies two design claims against actual running code:
 #
-#   Claim 1 (Section 4.2): Reversibility gate
-#     "irreversible actions are prohibited unless confidence thresholds are met
-#      and manual confirmation is secured."
+#   Claim 1: Reversibility gate
+#     "Irreversible actions are permanently blocked by the safety gate;
+#      no execution pathway exists."
 #
-#   Claim 2 (Section 1.2): Runtime reclassification
-#     "The classification is continuously re-evaluated and may be revised at
-#      runtime."
+#   Claim 2: Workload classification
+#     "Classification is determined at deployment time based on workload type
+#      (stateless vs stateful). Runtime reclassification is an architectural
+#      goal and is not implemented in the current version."
 #
 # Each check runs actual controller code (not static analysis) and reports
-# what the code does vs. what the document claims.
+# what the code does vs. what the design claims.
 #
 # Results out: shared/safety_gate_verification.json
 #
@@ -117,8 +118,8 @@ def check_reversibility_gate_always_blocks():
         "check":       "reversibility_gate_always_blocks",
         "status":      status,
         "doc_claim":   (
-            "Section 4.2: irreversible actions are prohibited unless confidence thresholds "
-            "are met AND manual confirmation is secured."
+            "Irreversible actions are permanently blocked by the safety gate; "
+            "no execution pathway exists."
         ),
         "code_reality": (
             "stateful/reconcile.py lines 117-121 unconditionally set action='no_action' for "
@@ -151,7 +152,7 @@ def check_reversibility_gate_always_blocks():
 def check_wasm_gate_independently_enforces():
     """
     Confirm the WASM/Python policy gate independently rejects actions that
-    violate FSM-sequence constraints (Section 4.1).
+    violate FSM-sequence constraints.
 
     Source: stateful/actions.py _wasm_policy_check()
     """
@@ -188,7 +189,7 @@ def check_wasm_gate_independently_enforces():
     return {
         "check":        "wasm_gate_independently_enforces",
         "status":       PASS if all_correct else FAIL,
-        "doc_claim":    "Section 4.1: WASM actions must adhere to the formal state machine; actions rejected if they violate the sequence.",
+        "doc_claim":    "WASM actions must adhere to the formal state machine; actions are rejected if they violate the FSM sequence.",
         "code_reality": "stateful/actions._wasm_policy_check() enforces FSM-sequence constraints independently of reconcile.py.",
         "test_cases":   results,
     }
@@ -198,8 +199,7 @@ def check_wasm_gate_independently_enforces():
 
 def check_runtime_reclassification():
     """
-    Verify whether workload type (S vs F) is continuously re-evaluated at runtime
-    as claimed in Section 1.2.
+    Verify whether workload type (S vs F) is continuously re-evaluated at runtime.
 
     Checks:
       (a) Does integration/launcher.py have any reclassification logic?
@@ -255,8 +255,9 @@ def check_runtime_reclassification():
         "check":       "runtime_reclassification",
         "status":      PASS if implemented else NOTE,
         "doc_claim":   (
-            "Section 1.2: 'The classification is continuously re-evaluated and may "
-            "be revised at runtime.'"
+            "Classification is determined at deployment time based on workload type "
+            "(stateless vs stateful). Runtime reclassification is an architectural "
+            "goal and is not implemented in the current version."
         ),
         "code_reality": (
             "Classification is FIXED at process startup. "
@@ -267,9 +268,10 @@ def check_runtime_reclassification():
             "No classification model or reclassification function exists anywhere in the codebase."
         ),
         "recommendation": (
-            "Section 1.2 should be revised to: 'Classification is determined at deployment "
-            "time based on workload type (stateless vs stateful). Runtime reclassification "
-            "is an architectural goal and is not implemented in the current version.'"
+            "The design document should be updated to state: 'Classification is determined "
+            "at deployment time based on workload type (stateless vs stateful). Runtime "
+            "reclassification is an architectural goal and is not implemented in the "
+            "current version.'"
         ),
         "evidence": evidence,
     }

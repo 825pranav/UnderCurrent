@@ -1,39 +1,25 @@
 # UnderCurrent — Python dependencies
 #
-# ── CORE PIPELINE (main.py) ──────────────────────────────────────────────────
-# Simulate mode: zero external packages — Python 3.8+ stdlib only.
-#   python3 stateless/main.py
+# Core pipeline (simulate mode): Python 3.8+ stdlib only — no packages needed.
 #
-# ── TERMINAL DASHBOARD (dashboard.py) ────────────────────────────────────────
-rich>=13.0.0
-#   pip install rich
-#   python3 stateless/dashboard.py
-#
-# ── WEB DASHBOARD (streamlit_dashboard.py) ───────────────────────────────────
+# ── DASHBOARDS ───────────────────────────────────────────────────────────────
 streamlit>=1.30.0
 pandas>=1.5.0
 plotly>=5.0.0
 #   pip install streamlit pandas plotly
-#   streamlit run stateless/streamlit_dashboard.py
+#   python3 run.py                          # React dashboard (http://localhost:5050)
+#   python3 streamlit_dash.py              # Streamlit dashboard (http://localhost:8501)
 #
-# ── REAL MODE (eBPF, Linux + root only) ──────────────────────────────────────
-# bcc is a SYSTEM package — not installable via pip.
-#
-#   Ubuntu / Debian:
-#     sudo apt-get install bpfcc-tools python3-bpfcc linux-headers-$(uname -r)
-#
-#   Fedora / RHEL:
-#     sudo dnf install bcc bcc-tools python3-bcc kernel-devel
-#
-#   Then run: sudo python3 stateless/main.py --real
-#
-# ── WASM POLICY SANDBOX (stateful/wasm_executor.py) ──────────────────────────
+# ── WASM POLICY SANDBOX ───────────────────────────────────────────────────────
 wasmtime>=22.0.0
 #   pip install wasmtime
-#   Required for stateful/wasm_executor.py (WASM policy sandbox).
-#   If not installed, actions.py falls back silently — pipeline still runs.
+#   Required by stateful/wasm_executor.py. Falls back to Python policy if absent.
 #
-# ── DOCKER ACTIONS (optional) ────────────────────────────────────────────────
-# Requires Docker daemon running on the host for `docker restart` to work.
-# Without Docker, restart actions will fail gracefully (logged, not fatal).
-#   Install: https://docs.docker.com/engine/install/
+# ── REAL eBPF MODE (Linux + root only) ───────────────────────────────────────
+# bcc is a system package — not installable via pip.
+#   Ubuntu/Debian:  sudo apt-get install bpfcc-tools python3-bpfcc linux-headers-$(uname -r)
+#   Fedora/RHEL:    sudo dnf install bcc bcc-tools python3-bcc kernel-devel
+#   Then run:       sudo python3 run.py --real
+#
+# ── DOCKER ACTIONS ────────────────────────────────────────────────────────────
+# Requires Docker daemon for `docker restart`. Fails gracefully without it.

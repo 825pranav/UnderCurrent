@@ -37,6 +37,21 @@ int trace_tcp_connect(struct pt_regs *ctx) {
 }
 """
 
+# Map kernel comm strings → canonical Docker container name.
+# bpf_get_current_comm() returns the task's comm, which differs from the
+# Docker container name for some services:
+#   redis  → process is "redis-server"  (not "redis")
+#   mysql  → process is "mysqld"        (not "mysql")
+# Events from any comm not in this map are non-container processes and are
+# silently dropped so they never appear in the output stream.
+_DOCKER_COMM_MAP = {
+    "nginx":        "nginx",
+    "postgres":     "postgres",
+    "redis-server": "redis",
+    "mysqld":       "mysql",
+}
+
+
 class EventListener:
     def __init__(self):
         self.b = BPF(text=bpf_program)
@@ -45,9 +60,13 @@ class EventListener:
 
     def handle_event(self, cpu, data, size):
         event = self.b["events"].event(data)
+        comm = event.comm.decode("utf-8", errors="replace").rstrip("\x00")
+        container = _DOCKER_COMM_MAP.get(comm)
+        if container is None:
+            return  # not a Docker container process — discard
         event_type = "process_exit" if event.type == 0 else "tcp_connect"
         log = {
-            "container": event.comm.decode("utf-8", errors="replace"),
+            "container": container,
             "pid":       event.pid,
             "tgid":      event.tgid,
             "event":     event_type,

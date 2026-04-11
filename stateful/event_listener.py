@@ -154,6 +154,20 @@ TRACEPOINT_PROBE(syscalls, sys_enter_umount) {
 _ETYPE     = {0: "blk_io_latency", 1: "vfs_write_error", 2: "vfs_read_error"}
 _VOL_ETYPE = {3: "volume_mount_restored", 4: "volume_mount_lost"}
 
+# Map kernel comm strings → canonical Docker container name.
+# bpf_get_current_comm() returns the task's comm, which differs from the
+# Docker container name for some services:
+#   redis  → process is "redis-server"  (not "redis")
+#   mysql  → process is "mysqld"        (not "mysql")
+# Events from any comm not in this map are non-container processes and are
+# silently dropped so they never appear in the output stream.
+_DOCKER_COMM_MAP: dict[str, str] = {
+    "nginx":        "nginx",
+    "postgres":     "postgres",
+    "redis-server": "redis",
+    "mysqld":       "mysql",
+}
+
 
 class EventListener:
     """
@@ -171,10 +185,14 @@ class EventListener:
         print("[undercurrent-f] stateful event_listener started", flush=True)
 
     def handle_event(self, cpu, data, size):
-        ev    = self.b["f_events"].event(data)
+        ev   = self.b["f_events"].event(data)
+        comm = ev.comm.decode("utf-8", errors="replace").rstrip("\x00")
+        container = _DOCKER_COMM_MAP.get(comm)
+        if container is None:
+            return  # not a Docker container process — discard
         etype = _ETYPE.get(ev.type, "unknown")
         record = {
-            "container":  ev.comm.decode("utf-8", errors="replace"),
+            "container":  container,
             "pid":        ev.pid,
             "event":      etype,
             "time":       time.time(),
@@ -184,10 +202,14 @@ class EventListener:
         print(json.dumps(record), flush=True)
 
     def handle_vol_event(self, cpu, data, size):
-        ev    = self.b["vol_events"].event(data)
+        ev   = self.b["vol_events"].event(data)
+        comm = ev.comm.decode("utf-8", errors="replace").rstrip("\x00")
+        container = _DOCKER_COMM_MAP.get(comm)
+        if container is None:
+            return  # not a Docker container process — discard
         etype = _VOL_ETYPE.get(ev.type, "unknown")
         record = {
-            "container":   ev.comm.decode("utf-8", errors="replace"),
+            "container":   container,
             "pid":         ev.pid,
             "event":       etype,
             "time":        time.time(),

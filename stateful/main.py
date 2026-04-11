@@ -111,7 +111,7 @@ def _simulate_events(store: StatefulStateStore, stop_event: threading.Event,
 def _real_events(store: StatefulStateStore, stop_event: threading.Event):
     """Capture live kernel events via eBPF and feed the StatefulStateStore (root required)."""
     try:
-        from event_listener import EventListener, _VOL_ETYPE
+        from event_listener import EventListener, _VOL_ETYPE, _DOCKER_COMM_MAP
     except ImportError as exc:
         print(f"{_RED}[main-f] ERROR: cannot import event_listener — {exc}{_RESET}")
         print(f"{_YELLOW}[main-f] Install bcc and run as root, or drop --real.{_RESET}")
@@ -119,13 +119,21 @@ def _real_events(store: StatefulStateStore, stop_event: threading.Event):
         return
 
     class _FeedingListener(EventListener):
+        def __init__(self):
+            super().__init__()
+            print("[FILTER ACTIVE] only forwarding: nginx, postgres, redis, mysql", flush=True)
+
         def handle_event(self, cpu, data, size):
-            raw = self.b["f_events"].event(data)
-            ev  = {0: "blk_io_latency", 1: "vfs_write_error", 2: "vfs_read_error"}.get(
+            raw  = self.b["f_events"].event(data)
+            comm = raw.comm.decode("utf-8", errors="replace").rstrip("\x00")
+            container = _DOCKER_COMM_MAP.get(comm)
+            if container is None:
+                return  # not a Docker container process — discard
+            ev = {0: "blk_io_latency", 1: "vfs_write_error", 2: "vfs_read_error"}.get(
                 raw.type, "unknown"
             )
             record = {
-                "container":  raw.comm.decode("utf-8", errors="replace"),
+                "container":  container,
                 "pid":        raw.pid,
                 "event":      ev,
                 "time":       time.time(),
@@ -136,9 +144,13 @@ def _real_events(store: StatefulStateStore, stop_event: threading.Event):
             print(f"  {_DIM}[ebpf-f] {json.dumps(record)}{_RESET}", flush=True)
 
         def handle_vol_event(self, cpu, data, size):
-            raw = self.b["vol_events"].event(data)
+            raw  = self.b["vol_events"].event(data)
+            comm = raw.comm.decode("utf-8", errors="replace").rstrip("\x00")
+            container = _DOCKER_COMM_MAP.get(comm)
+            if container is None:
+                return  # not a Docker container process — discard
             record = {
-                "container":   raw.comm.decode("utf-8", errors="replace"),
+                "container":   container,
                 "pid":         raw.pid,
                 "event":       _VOL_ETYPE.get(raw.type, "unknown"),
                 "time":        time.time(),

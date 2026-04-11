@@ -1,0 +1,109 @@
+{
+  "generated_at": "2026-04-11T16:51:50Z",
+  "mttr_timestamp_field": "decision_timestamp",
+  "trace_quality": {
+    "stateless": {
+      "total": 246,
+      "real": 123,
+      "shadow": 123,
+      "missing_node_type": 0,
+      "missing_decision_timestamp": 0,
+      "missing_dag_pattern": 0,
+      "missing_kernel_signals": 0,
+      "missing_reversibility": 0
+    },
+    "stateful": {
+      "total": 238,
+      "real": 119,
+      "shadow": 119,
+      "missing_node_type": 0,
+      "missing_decision_timestamp": 0,
+      "missing_dag_pattern": 0,
+      "missing_kernel_signals": 0,
+      "missing_reversibility": 0
+    }
+  },
+  "action_distribution": {
+    "stateless": {
+      "reschedule": 123
+    },
+    "stateful": {
+      "no_action": 24,
+      "flush_io_queue": 51,
+      "checkpoint_and_restart": 44
+    }
+  },
+  "kernel_signals_observed": {
+    "stateless": [
+      "process_exit"
+    ],
+    "stateful": [
+      "blk_io_latency_normal",
+      "vfs_write_error"
+    ]
+  },
+  "fsm_state_distribution": {
+    "Healthy": 2,
+    "Audited": 73,
+    "Recovered": 44
+  },
+  "divergence_action_pairs": {
+    "checkpoint_and_restart\u2192flush_io_queue": 44
+  },
+  "metrics": {
+    "M1_misclassification_rate": 0.0,
+    "M2_divergence_rate": {
+      "stateless": 0.0,
+      "stateful": 0.3697,
+      "overall": 0.1818
+    },
+    "M3_mttr_seconds": {
+      "all": {
+        "mean_s": 24.3881,
+        "n_episodes": 23
+      },
+      "stateless": {
+        "mean_s": 0.0,
+        "n_episodes": 0
+      },
+      "stateful": {
+        "mean_s": 242.8064,
+        "n_episodes": 2
+      }
+    },
+    "M3_mttr_per_container": {
+      "stateless": {
+        "postgres": []
+      },
+      "stateful": {
+        "postgres": [
+          61.0162,
+          424.5966
+        ]
+      }
+    },
+    "M4_reversibility_ratio": {
+      "all": 1.0,
+      "stateless": 1.0,
+      "stateful": 1.0
+    },
+    "M5_explanation_completeness": {
+      "all": 1.0,
+      "stateless": 1.0,
+      "stateful": 1.0
+    },
+    "M6_unsafe_action_suppression_rate": {
+      "all": 0.1818,
+      "stateless": 0.0,
+      "stateful": 0.3697
+    }
+  },
+  "mttr_null_ts_skipped": {
+    "stateless": 0,
+    "stateful": 0
+  },
+  "caveats": [
+    "stateless/divergence_log.jsonl absent \u2014 M2 stateless divergence_rate is 0.0. Expected: stateless real and shadow paths use the same pure-threshold DAG (no FSM state), so they never diverge.",
+    "No complete fault\u2192recovery episodes found in stateless real traces; M3 MTTR stateless = 0.0. This means either no container triggered an action, or no action was followed by a no_action in the trace window."
+  ]
+}

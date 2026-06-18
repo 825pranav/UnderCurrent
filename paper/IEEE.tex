@@ -64,7 +64,7 @@ The dual-track control plane described here addresses all three. Contributions:
 \item A dual-track architecture running Type~S (stateless) and Type~F (stateful) pipelines on a shared eBPF event bus, with independent confidence scoring and sliding-window state stores per track (Section~\ref{sec:arch}).
 \item A five-state FSM for Type~F that enforces action sequencing and irreversibility constraints separately from the confidence DAG, backed by a policy layer that gates actions at the execution boundary (Section~\ref{sec:typef}).
 \item A real/shadow execution model that runs every reconcile cycle twice---once on the live FSM, once on a fresh throwaway---and logs divergence as a first-class metric (Section~\ref{sec:arch}).
-\item A six-metric evaluation framework with formal equations and results from live eBPF probes on real Docker containers, separating nominal-baseline from fault-injection findings (Section~\ref{sec:eval}).
+\item A four-metric behavioural evaluation---divergence rate (M2), MTTR (M3), reversibility ratio (M4), and FSM-gated suppression rate (M6)---supplemented by two schema validation checks (M1, M5), with formal equations and results from live eBPF probes on real Docker containers (Section~\ref{sec:eval}).
 \end{enumerate}
 
 \section{Background and Related Work}
@@ -187,7 +187,7 @@ Parameters: $\theta_{\mathrm{io}} = 5$, $\sigma_{\mathrm{io}} = 0.85$, $\theta_{
 
 \subsection{Five-State FSM}
 
-Table~\ref{tab:fsm} gives the full transition relation. The FSM persists across cycles and resets only when a complete recovery finishes. The key constraint is Degraded$\rightarrow$Audited: \texttt{checkpoint\_and\_restart} cannot fire until at least one \texttt{flush\_io\_queue} cycle has completed, enforcing an MTTR lower bound of one reconcile interval---5\,s by default.
+Table~\ref{tab:fsm} gives the full transition relation. The FSM persists across cycles and resets only when a complete recovery finishes. The key constraint is Degraded$\rightarrow$Audited: \texttt{checkpoint\_and\_restart} cannot fire in the same reconcile cycle as the first fault-triggered \texttt{flush\_io\_queue}. Algorithm~\ref{alg:reconcile} shows why: the audit transition (step~4b) fires in the same call that downgrades C\&R to flush (step~4a), so C\&R can only execute in the following cycle at earliest. At minimum one reconcile interval (5\,s) separates first fault detection from checkpoint execution.
 
 \begin{table}[!t]
 \caption{TYPE F FSM TRANSITION RELATION.}
@@ -357,7 +357,7 @@ $M_4 = 1.0000$. All 1,039 Type~S and 95 Type~F Phase~2 active decisions were rev
 
 $M_2 = M_6 = 0.3697$ (Phase~2). 44 of 119 stateful cycles produced a real/shadow disagreement. In every case the pattern was the same: the real FSM had accumulated enough state to reach Audited and approve \texttt{checkpoint\_and\_restart}; the shadow FSM, reset each cycle, only reached Degraded and deferred to \texttt{flush\_io\_queue}. All 44 records carried a non-null \texttt{blocked\_reason}. The policy layer confirmed the FSM verdict each time.
 
-$M_3$ (indicative only, $N=2$). Two complete fault episodes were observed for \texttt{postgres}: 61.0\,s and 424.6\,s, giving a mean of 242.8\,s. With only two episodes differing by a factor of seven, this mean is not statistically meaningful and is reported for completeness only. What the FSM guarantees structurally is a lower bound of one reconcile interval (5\,s) on time to the Audited state, through the mandatory Degraded$\rightarrow$Audited transition.
+$M_3$ (indicative only, $N=2$). Two complete fault episodes were observed for \texttt{postgres}: 61.0\,s and 424.6\,s, giving a mean of 242.8\,s. With only two episodes differing by a factor of seven, this mean is not statistically meaningful and is reported for completeness only. What the FSM guarantees structurally is a minimum delay of one reconcile interval (5\,s) between first fault detection and \texttt{checkpoint\_and\_restart} execution: Audited state is reached within the first fault cycle, but C\&R cannot execute until the following cycle. The minimum MTTR---from first active decision to first subsequent \texttt{no\_action}---is therefore at least two reconcile intervals (10\,s).
 
 \begin{table*}[!t]
 \caption{METRIC VALUES FROM REAL-SYSTEM EBPF EVALUATION. PHASE~1: $N_S = 1{,}187$, $N_F = 386$ REAL ENTRIES. PHASE~2: $N_F = 119$ REAL ENTRIES.}

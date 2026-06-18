@@ -28,6 +28,9 @@ stateful/ablation_results.json
 *.pdf
 generate_report.py
 
+# Alternate paper drafts
+paper/undercurrent.tex
+
 # OS
 .DS_Store
 Thumbs.db

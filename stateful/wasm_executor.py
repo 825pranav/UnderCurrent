@@ -52,6 +52,17 @@ _ACTION_WAT: dict = {
 _engine  = wasmtime.Engine()
 _modules: dict = {}
 
+# Pre-compile all WAT modules at import time so the first policy_check() call
+# does not include JIT compilation latency in overhead measurements.
+def _precompile_all() -> None:
+    for action in _ACTION_WAT:
+        try:
+            _get_module(action)
+        except Exception:
+            pass   # missing WAT file — will surface at call time
+
+_precompile_all()
+
 
 def _get_module(action: str) -> "wasmtime.Module":
     """

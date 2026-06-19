@@ -30,7 +30,7 @@ import time
 from state_store import StatefulStateStore
 from fsm import ContainerFSM
 from reconcile import reconcile, reconcile_both
-from actions import execute
+from actions import execute, wasm_latency_stats
 from trace_logger import log_decision
 
 WINDOW_SECONDS = 60
@@ -378,6 +378,13 @@ event source:
         stop_event.set()
         source_thread.join(timeout=3)
         reconcile_thread.join(timeout=3)
+        stats = wasm_latency_stats()
+        print(
+            f"[main-f] policy engine overhead — "
+            f"engine={stats['engine']} n={stats['count']} "
+            f"mean={stats['mean_us']}µs stddev={stats['stddev_us']}µs",
+            flush=True,
+        )
         print("[main-f] done.", flush=True)
         sys.exit(0)
 

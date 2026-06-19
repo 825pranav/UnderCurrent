@@ -211,16 +211,50 @@ def checkpoint_and_restart(container: str) -> dict:
             f"[actions-f] CRIU checkpoint '{ckpt_name}' "
             f"({ckpt_latency_ms}ms) — restore {'OK' if restore_ok else 'FAILED'}"
         )
+
+        if restore_ok:
+            result = _result(
+                container, "checkpoint_and_restart", True,
+                stdout=(
+                    f"CRIU checkpoint '{ckpt_name}' created in {ckpt_latency_ms}ms | "
+                    f"restore succeeded: {restore_stdout}"
+                ),
+                stderr=restore_stderr,
+            )
+            result["checkpoint_success"]    = True
+            result["restore_success"]       = True
+            result["checkpoint_latency_ms"] = ckpt_latency_ms
+            result["checkpoint_name"]       = ckpt_name
+            result["criu_used"]             = True
+            return result
+
+        # Checkpoint created but restore failed (e.g. netns bind-mount on Linux 5.15)
+        # Fall back to docker restart so the container actually recovers.
+        print(
+            f"[actions-f] CRIU restore failed: {restore_stderr[:100]} "
+            f"— falling back to docker restart"
+        )
+        try:
+            fallback = subprocess.run(
+                ["docker", "restart", container],
+                capture_output=True, text=True, timeout=30,
+            )
+            fallback_ok = fallback.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            fallback_ok = False
+            fallback = type("R", (), {"stdout": "", "stderr": "docker restart failed"})()
+
         result = _result(
-            container, "checkpoint_and_restart", restore_ok,
+            container, "checkpoint_and_restart", fallback_ok,
             stdout=(
-                f"CRIU checkpoint '{ckpt_name}' created in {ckpt_latency_ms}ms | "
-                f"restore {'succeeded' if restore_ok else 'FAILED'}: {restore_stdout}"
+                f"CRIU checkpoint '{ckpt_name}' created ({ckpt_latency_ms}ms); "
+                f"restore FAILED ({restore_stderr[:60]}); "
+                f"docker restart {'succeeded' if fallback_ok else 'FAILED'}"
             ),
             stderr=restore_stderr,
         )
         result["checkpoint_success"]    = True
-        result["restore_success"]       = restore_ok
+        result["restore_success"]       = False
         result["checkpoint_latency_ms"] = ckpt_latency_ms
         result["checkpoint_name"]       = ckpt_name
         result["criu_used"]             = True

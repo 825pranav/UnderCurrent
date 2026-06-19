@@ -54,7 +54,7 @@ if __name__ == "__main__":
     # Simulate events from event_listener.py
     store.record({"container": "nginx", "pid": 1001, "event": "process_exit", "time": time.time()})
     store.record({"container": "nginx", "pid": 1002, "event": "process_exit", "time": time.time()})
-    store.record({"container": "pyapp", "pid": 2001, "event": "tcp_connect_fail", "time": time.time()})
+    store.record({"container": "pyapp", "pid": 2001, "event": "tcp_connect", "time": time.time()})
 
     # Old event (should be pruned)
     store.record({"container": "nginx", "pid": 999, "event": "process_exit", "time": time.time() - 30})

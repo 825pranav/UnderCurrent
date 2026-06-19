@@ -42,8 +42,10 @@ from fsm import ContainerFSM
 from reconcile import reconcile
 from actions import execute
 
-EPISODES_OUT = os.path.join(os.path.dirname(__file__), "episodes.jsonl")
-SUMMARY_OUT  = os.path.join(os.path.dirname(__file__), "mttr_summary.json")
+_SCRIPTS = os.path.dirname(__file__)
+# Per-workload output: episodes_<container>.jsonl and mttr_<container>.json
+def _episodes_path(container): return os.path.join(_SCRIPTS, f"episodes_{container}.jsonl")
+def _summary_path(container):  return os.path.join(_SCRIPTS, f"mttr_{container}.json")
 
 
 def _ensure_running(container: str) -> bool:
@@ -154,6 +156,9 @@ def main():
 
     if not _ensure_running(args.container):
         sys.exit(1)
+
+    EPISODES_OUT = _episodes_path(args.container)
+    SUMMARY_OUT  = _summary_path(args.container)
 
     mttrs   = []
     open(EPISODES_OUT, "w").close()

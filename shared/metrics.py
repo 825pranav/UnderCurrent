@@ -374,7 +374,7 @@ if __name__ == "__main__":
         # pyapp: shadow mode — excluded from MTTR and suppression
         {"container": "pyapp", "node_type": "S", "mode": "shadow", "action": "restart",
          "score": 0.85, "why": "shadow",     "trace_time": now,
-         "kernel_signals": ["tcp_connect_fail"], "dag_pattern": "network_degraded",
+         "kernel_signals": ["tcp_connect"], "dag_pattern": "network_degraded",
          "reversibility": "reversible", "wasm_blocked": False, "blocked_reason": None},
     ]
 

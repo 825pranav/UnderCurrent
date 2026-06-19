@@ -24,8 +24,8 @@ def _kernel_signals(failures: list) -> list:
         ev = e.get("event", "")
         if ev == "process_exit":
             signals.add("process_exit")
-        elif ev == "tcp_connect_fail":
-            signals.add("tcp_connect_fail")
+        elif ev == "tcp_connect":
+            signals.add("tcp_connect")
     return sorted(signals)
 
 
@@ -112,12 +112,12 @@ if __name__ == "__main__":
 
     # nginx: process_exit → score 0.95 → reschedule
     store.record({"container": "nginx",  "pid": 1, "event": "process_exit",    "time": now})
-    # pyapp: 3 tcp_connect_fail → score 0.54 → no_action
+    # pyapp: 3 tcp_connect → score 0.54 → no_action
     for i in range(3):
-        store.record({"container": "pyapp",  "pid": 10+i, "event": "tcp_connect_fail", "time": now})
-    # redis: 5 tcp_connect_fail → score 0.90 → restart
+        store.record({"container": "pyapp",  "pid": 10+i, "event": "tcp_connect", "time": now})
+    # redis: 5 tcp_connect → score 0.90 → restart
     for i in range(5):
-        store.record({"container": "redis",  "pid": 20+i, "event": "tcp_connect_fail", "time": now})
+        store.record({"container": "redis",  "pid": 20+i, "event": "tcp_connect", "time": now})
 
     result = reconcile_both(store)
 

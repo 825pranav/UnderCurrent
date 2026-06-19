@@ -6,7 +6,7 @@
 # WHY FAULT SCENARIOS DIFFER BY DESIGN
 # ──────────────────────────────────────
 # The two controllers handle different kernel signal domains:
-#   Stateless: process_exit, tcp_connect_fail
+#   Stateless: process_exit, tcp_connect
 #   Stateful : blk_io_latency, vfs_write_error, vfs_read_error, volume_mount_lost
 #
 # Cross-controller comparison is therefore organised by *severity level*, not
@@ -106,16 +106,16 @@ S_SCENARIOS = [
     {
         "name":            "s_sub_threshold",
         "level":           0,
-        "description":     "3 tcp_connect_fail → score=0.54, below RESTART_THRESHOLD (0.80) → no_action",
-        "events":          [{"event": "tcp_connect_fail"}] * 3,
+        "description":     "3 tcp_connect → score=0.54, below RESTART_THRESHOLD (0.80) → no_action",
+        "events":          [{"event": "tcp_connect"}] * 3,
         "expected_action": "no_action",
         "fault_present":   True,
     },
     {
         "name":            "s_minor",
         "level":           1,
-        "description":     "5 tcp_connect_fail → score=0.90, above RESTART_THRESHOLD (0.80) → restart",
-        "events":          [{"event": "tcp_connect_fail"}] * 5,
+        "description":     "5 tcp_connect → score=0.90, above RESTART_THRESHOLD (0.80) → restart",
+        "events":          [{"event": "tcp_connect"}] * 5,
         "expected_action": "restart",
         "fault_present":   True,
     },
@@ -481,18 +481,18 @@ def run(out_file: str = OUT_FILE) -> dict:
         "methodology": (
             "Both controllers run on domain-appropriate fault scenarios at matched severity "
             "levels (sub-threshold, minor, major/critical, recovery). Fault types differ by "
-            "design: S-track uses process_exit/tcp_connect_fail; F-track uses vfs_write_error/"
+            "design: S-track uses process_exit/tcp_connect; F-track uses vfs_write_error/"
             "blk_io_latency/volume_mount_lost. Metrics are computed identically for both. "
             "MTTR measures controller decision latency (fault inject → event-clear → "
             "no_action decision), not wall-clock fault duration."
         ),
         "severity_level_mapping": {
             "level_0_sub_threshold": {
-                "stateless": "3x tcp_connect_fail → score=0.54",
+                "stateless": "3x tcp_connect → score=0.54",
                 "stateful":  "1x vfs_write_error → score=0.293",
             },
             "level_1_minor": {
-                "stateless": "5x tcp_connect_fail → score=0.90 → restart",
+                "stateless": "5x tcp_connect → score=0.90 → restart",
                 "stateful":  "2x vfs_write_error → score=0.587 → flush_io_queue",
             },
             "level_2_major": {

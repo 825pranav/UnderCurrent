@@ -6,7 +6,7 @@ import time
 
 # --- Tunable thresholds ---
 PROCESS_EXIT_BASE = 0.95        # base score for any process_exit event
-TCP_FAIL_SCALE_MAX = 0.90       # ceiling score for tcp_connect_fail
+TCP_FAIL_SCALE_MAX = 0.90       # ceiling score for tcp_connect
 TCP_FAIL_SCALE_RATE = 5         # failures needed to reach ceiling
 
 
@@ -21,13 +21,13 @@ def score_process_exit(failures: list) -> float:
     return PROCESS_EXIT_BASE
 
 
-def score_tcp_connect_fail(failures: list) -> float:
+def score_tcp_connect(failures: list) -> float:
     """
-    tcp_connect_fail confidence scales with frequency within the window.
+    tcp_connect confidence scales with frequency within the window.
     0 failures → 0.0
     TCP_FAIL_SCALE_RATE or more failures → TCP_FAIL_SCALE_MAX
     """
-    tcp_events = [e for e in failures if e.get("event") == "tcp_connect_fail"]
+    tcp_events = [e for e in failures if e.get("event") == "tcp_connect"]
     count = len(tcp_events)
     if count == 0:
         return 0.0
@@ -46,7 +46,7 @@ def compute_confidence(container: str, state_store) -> float:
 
     scores = [
         score_process_exit(failures),
-        score_tcp_connect_fail(failures),
+        score_tcp_connect(failures),
     ]
     return round(max(scores), 4)
 
@@ -72,13 +72,13 @@ if __name__ == "__main__":
     # nginx: has a process_exit → should be 0.95
     store.record({"container": "nginx", "pid": 101, "event": "process_exit", "time": now})
 
-    # pyapp: 3 tcp_connect_fail events → 3/5 * 0.90 = 0.54
+    # pyapp: 3 tcp_connect events → 3/5 * 0.90 = 0.54
     for i in range(3):
-        store.record({"container": "pyapp", "pid": 200 + i, "event": "tcp_connect_fail", "time": now})
+        store.record({"container": "pyapp", "pid": 200 + i, "event": "tcp_connect", "time": now})
 
-    # redis: 5+ tcp_connect_fail → should hit ceiling 0.90
+    # redis: 5+ tcp_connect → should hit ceiling 0.90
     for i in range(6):
-        store.record({"container": "redis", "pid": 300 + i, "event": "tcp_connect_fail", "time": now})
+        store.record({"container": "redis", "pid": 300 + i, "event": "tcp_connect", "time": now})
 
     # clean: no events → 0.0
     store.record({"container": "clean", "pid": 400, "event": "some_other_event", "time": now})

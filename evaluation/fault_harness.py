@@ -28,40 +28,40 @@ FAULT_SCENARIOS = [
     # ── Single faults — S track ───────────────────────────────────────────────
     {
         "id":               "cpu_spike_01",
-        "type":             "tcp_connect_fail_burst",
+        "type":             "tcp_connect_burst",
         "category":         "single",
         "track":            "S",
         "expected_action":  "restart",
         "expected_sequence": ["restart"],
         "inject_params": {
-            "event":        "tcp_connect_fail",
+            "event":        "tcp_connect",
             "count":        5,
             "spread_s":     0.5,
             "jitter_s":     0.2,
             "container":    "sim-s-cpu-spike",
         },
         "description": (
-            "Inject 5 tcp_connect_fail events within a short burst. "
+            "Inject 5 tcp_connect events within a short burst. "
             "Score = 5/5 × 0.90 = 0.90 >= RESTART_THRESHOLD (0.80). "
             "Expected action: restart."
         ),
     },
     {
         "id":               "memory_leak_01",
-        "type":             "tcp_connect_fail_spread",
+        "type":             "tcp_connect_spread",
         "category":         "single",
         "track":            "S",
         "expected_action":  "restart",
         "expected_sequence": ["restart"],
         "inject_params": {
-            "event":        "tcp_connect_fail",
+            "event":        "tcp_connect",
             "count":        5,
             "spread_s":     2.0,
             "jitter_s":     0.3,
             "container":    "sim-s-memleak",
         },
         "description": (
-            "Inject 5 tcp_connect_fail events spread over 2 seconds to simulate "
+            "Inject 5 tcp_connect events spread over 2 seconds to simulate "
             "a slow-onset memory leak causing repeated connection failures. "
             "Score = 0.90 >= RESTART_THRESHOLD. Expected action: restart."
         ),
@@ -88,20 +88,20 @@ FAULT_SCENARIOS = [
     },
     {
         "id":               "disk_full_01",
-        "type":             "tcp_connect_fail_excess",
+        "type":             "tcp_connect_excess",
         "category":         "single",
         "track":            "S",
         "expected_action":  "restart",
         "expected_sequence": ["restart"],
         "inject_params": {
-            "event":        "tcp_connect_fail",
+            "event":        "tcp_connect",
             "count":        7,
             "spread_s":     1.0,
             "jitter_s":     0.2,
             "container":    "sim-s-diskfull",
         },
         "description": (
-            "Inject 7 tcp_connect_fail events (beyond the scale ceiling of 5). "
+            "Inject 7 tcp_connect events (beyond the scale ceiling of 5). "
             "Score = min(7/5, 1.0) × 0.90 = 0.90 (capped). "
             "Expected action: restart."
         ),
@@ -190,14 +190,14 @@ FAULT_SCENARIOS = [
         "inject_params": {
             "events": [
                 {"event": "process_exit",    "count": 1, "spread_s": 0.0},
-                {"event": "tcp_connect_fail", "count": 3, "spread_s": 0.5},
+                {"event": "tcp_connect", "count": 3, "spread_s": 0.5},
             ],
             "jitter_s":  0.2,
             "container": "sim-s-compound-cpu-io",
         },
         "description": (
-            "Inject 1 process_exit + 3 tcp_connect_fail events. "
-            "Stateless scorer takes max: process_exit → 0.95, tcp_connect_fail 3/5 → 0.54. "
+            "Inject 1 process_exit + 3 tcp_connect events. "
+            "Stateless scorer takes max: process_exit → 0.95, tcp_connect 3/5 → 0.54. "
             "Max = 0.95 >= RESCHEDULE_THRESHOLD. process_exit dominates. "
             "Expected action: reschedule."
         ),
@@ -212,14 +212,14 @@ FAULT_SCENARIOS = [
         "inject_params": {
             "events": [
                 {"event": "process_exit",    "count": 1, "spread_s": 0.0},
-                {"event": "tcp_connect_fail", "count": 5, "spread_s": 1.0},
+                {"event": "tcp_connect", "count": 5, "spread_s": 1.0},
             ],
             "jitter_s":  0.2,
             "container": "sim-s-compound-net-mem",
         },
         "description": (
-            "Inject 1 process_exit + 5 tcp_connect_fail events. "
-            "Scores: process_exit → 0.95, tcp_connect_fail → 0.90. "
+            "Inject 1 process_exit + 5 tcp_connect events. "
+            "Scores: process_exit → 0.95, tcp_connect → 0.90. "
             "Max = 0.95 >= RESCHEDULE_THRESHOLD. "
             "Expected action: reschedule."
         ),
@@ -227,40 +227,40 @@ FAULT_SCENARIOS = [
     # ── Intermittent / gray-zone ───────────────────────────────────────────────
     {
         "id":               "cpu_flicker_01",
-        "type":             "tcp_connect_fail_low",
+        "type":             "tcp_connect_low",
         "category":         "intermittent",
         "track":            "S",
         "expected_action":  "no_action",
         "expected_sequence": ["no_action"],
         "inject_params": {
-            "event":        "tcp_connect_fail",
+            "event":        "tcp_connect",
             "count":        2,
             "spread_s":     5.0,
             "jitter_s":     0.5,
             "container":    "sim-s-flicker",
         },
         "description": (
-            "Inject 2 tcp_connect_fail events spread over 5 seconds. "
+            "Inject 2 tcp_connect events spread over 5 seconds. "
             "Score = 2/5 × 0.90 = 0.36, well below RESTART_THRESHOLD (0.80). "
             "Tests conservative no-action behavior for transient, low-frequency signals."
         ),
     },
     {
         "id":               "ambiguous_01",
-        "type":             "tcp_connect_fail_borderline",
+        "type":             "tcp_connect_borderline",
         "category":         "intermittent",
         "track":            "S",
         "expected_action":  "no_action",
         "expected_sequence": ["no_action"],
         "inject_params": {
-            "event":        "tcp_connect_fail",
+            "event":        "tcp_connect",
             "count":        4,
             "spread_s":     1.0,
             "jitter_s":     0.3,
             "container":    "sim-s-ambiguous",
         },
         "description": (
-            "Inject 4 tcp_connect_fail events. "
+            "Inject 4 tcp_connect events. "
             "Score = 4/5 × 0.90 = 0.72 < RESTART_THRESHOLD (0.80). "
             "Gray-zone scenario: one event short of triggering restart. "
             "Expected action: no_action (just below threshold — conservative)."
@@ -357,7 +357,7 @@ def _base_event(container: str, event_type: str, pid: int,
 
     Args:
         container:  container name string.
-        event_type: eBPF event name (e.g. 'tcp_connect_fail').
+        event_type: eBPF event name (e.g. 'tcp_connect').
         pid:        synthetic process ID for this event.
         ts:         unix timestamp float.
         track:      'S' or 'F' — determines node_type field.

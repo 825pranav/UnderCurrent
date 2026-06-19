@@ -18,6 +18,8 @@ stateful/traces.jsonl
 stateful/divergence_log.jsonl
 
 # Generated evaluation results (reproducible via scripts, kept locally only)
+scripts/episodes.jsonl
+scripts/mttr_summary.json
 shared/eval_results.json
 shared/cross_eval_results.json
 shared/sensitivity_results.json

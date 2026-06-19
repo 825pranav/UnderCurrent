@@ -49,7 +49,7 @@ BANNER = f"""{_CYAN}{_BOLD}
 ╚══════════════════════════════════════════════╝{_RESET}"""
 
 SIMULATED_CONTAINERS = ["nginx", "pyapp", "redis", "worker", "gateway"]
-SIMULATED_EVENTS     = ["process_exit", "tcp_connect_fail", "tcp_connect_fail"]
+SIMULATED_EVENTS     = ["process_exit", "tcp_connect", "tcp_connect"]
 
 
 # ── Event sources ──────────────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ def _real_events(store: StateStore, stop_event: threading.Event):
             record = {
                 "container": container,
                 "pid":       raw.pid,
-                "event":     "process_exit" if raw.type == 0 else "tcp_connect_fail",
+                "event":     "process_exit" if raw.type == 0 else "tcp_connect",
                 "time":      time.time(),
             }
             store.record(record)

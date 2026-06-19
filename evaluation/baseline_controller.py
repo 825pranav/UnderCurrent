@@ -58,7 +58,7 @@ class BaselineController:
           3. ≥5 high-latency blk_io + ≥3 vfs errors          → "checkpoint_and_restart"
           4. ≥5 high-latency blk_io events                    → "flush_io_queue"
           5. ≥3 vfs_write_error or vfs_read_error events      → "flush_io_queue"
-          6. ≥5 tcp_connect_fail events                       → "restart"
+          6. ≥5 tcp_connect events                       → "restart"
           7. None of the above                                → "no_action"
 
         Args:
@@ -73,7 +73,7 @@ class BaselineController:
 
         # Count each signal type
         process_exits   = [e for e in events if e.get("event") == "process_exit"]
-        tcp_fails       = [e for e in events if e.get("event") == "tcp_connect_fail"]
+        tcp_fails       = [e for e in events if e.get("event") == "tcp_connect"]
         blk_high        = [
             e for e in events
             if e.get("event") == "blk_io_latency"
@@ -99,8 +99,8 @@ class BaselineController:
             ev = e.get("event", "")
             if ev == "process_exit":
                 signals.add("process_exit")
-            elif ev == "tcp_connect_fail":
-                signals.add("tcp_connect_fail")
+            elif ev == "tcp_connect":
+                signals.add("tcp_connect")
             elif ev == "blk_io_latency":
                 if e.get("latency_us", 0) >= self._BLK_IO_LATENCY_CUTOFF:
                     signals.add("blk_io_latency_high")
@@ -145,7 +145,7 @@ class BaselineController:
 
         elif len(tcp_fails) >= self._TCP_FAIL_THRESHOLD:
             action      = "restart"
-            reason      = f"{len(tcp_fails)} tcp_connect_fail events"
+            reason      = f"{len(tcp_fails)} tcp_connect events"
             dag_pattern = "network_degraded"
 
         else:
@@ -200,7 +200,7 @@ if __name__ == "__main__":
                 "pid": pid, "time": now, **kw}
 
     # Rule 1: process_exit → reschedule
-    d = ctrl.decide([_ev("process_exit"), _ev("tcp_connect_fail")], "c1")
+    d = ctrl.decide([_ev("process_exit"), _ev("tcp_connect")], "c1")
     assert d["action"] == "reschedule", d
     assert "process_exit" in d["kernel_signals"]
     print(f"  process_exit → {d['action']}  OK")
@@ -235,14 +235,14 @@ if __name__ == "__main__":
     assert d["action"] == "flush_io_queue", d
     print(f"  vfs_errors×3 → {d['action']}  OK")
 
-    # Rule 6: tcp_connect_fail × 5 → restart
-    d = ctrl.decide([_ev("tcp_connect_fail") for _ in range(5)], "c6")
+    # Rule 6: tcp_connect × 5 → restart
+    d = ctrl.decide([_ev("tcp_connect") for _ in range(5)], "c6")
     assert d["action"] == "restart", d
     assert "decision_latency_ns" in d and isinstance(d["decision_latency_ns"], int)
     print(f"  tcp_fail×5 → {d['action']}  OK  latency={d['decision_latency_ns']}ns")
 
     # Rule 7: too few events → no_action
-    d = ctrl.decide([_ev("tcp_connect_fail") for _ in range(3)], "c7")
+    d = ctrl.decide([_ev("tcp_connect") for _ in range(3)], "c7")
     assert d["action"] == "no_action", d
     print(f"  tcp_fail×3 → {d['action']}  OK")
 

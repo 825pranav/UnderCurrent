@@ -160,9 +160,9 @@ MySQL MTTR is highest because mysqld server initialisation on restart takes ~1.3
 
 ---
 
-## WASM Policy Sandbox (Day 1)
+## WASM Policy Sandbox (Day 1 validation + Day 5 benchmark)
 
-Source: `python3 stateful/wasm_executor.py` self-test, then 20-call latency test in actions.py.
+Source: `python3 stateful/wasm_executor.py` self-test (Day 1), then `scripts/benchmark_overhead.py` (Day 5).
 
 | Item | Value |
 |------|-------|
@@ -171,16 +171,44 @@ Source: `python3 stateful/wasm_executor.py` self-test, then 20-call latency test
 | Self-test cases | 20 / 20 passed |
 | Suppression rate helper test | 0.5 (2 blocked of 4 traces) ✓ |
 
-**Latency (preliminary — from 20-call test, Day 1):**
+**Steady-state latency (Day 5 benchmark — N=10,000 calls, post JIT warmup):**
 
-| Stat | Value | Note |
-|------|-------|------|
-| n | 20 | Includes JIT warmup |
-| mean | 865.57 µs | High due to first-call JIT |
-| stddev | 3,637 µs | Dominated by first 1–2 calls |
+| Stat | Value |
+|------|-------|
+| n | 10,000 |
+| mean | 27.2 µs |
+| p50 | 26.1 µs |
+| p95 | 29.6 µs |
+| p99 | 50.4 µs |
+| min | 23.8 µs |
+| max | 586.0 µs (outlier spike) |
 
-This is NOT a reliable steady-state number. Proper 10,000-call benchmark is Day 5.
-**Do not cite 865µs as the overhead. Use "sub-millisecond in steady state, formal benchmark pending."**
+Method: 200-call warmup, then 10,000 calls across all four action types (2,500 per action). Modules pre-compiled at import time (amortised). Each call creates a fresh `Store + Instance` (stateless sandbox design).
+
+Python equivalent (plain dict/set lookup, same logic): mean=0.118µs. WASM/Python ratio: 230×.
+
+As fraction of 5s reconcile interval: 27µs / 5,000,000µs = 0.0005% — negligible.
+
+**Do NOT cite 865µs (Day 1 preliminary). Use Day 5 numbers. Cite as: "27µs mean, 50µs at p99 (N=10,000, post-warmup)."**
+
+---
+
+## Shadow Execution Overhead (Day 5)
+
+Source: `scripts/benchmark_overhead.py`, N=2,000 iterations each path.
+Each iteration: fresh StateStore loaded with 8 fault events, then reconcile().
+
+| Metric | Value |
+|--------|-------|
+| single-path reconcile() | 6.9 µs mean |
+| dual-path reconcile_both() | 14.9 µs mean |
+| shadow overhead (absolute) | 8.1 µs |
+| shadow overhead (relative) | 117% of single-path |
+| as fraction of 5s interval | 0.0002% |
+
+Note: proportional overhead (117%) is expected — shadow path runs an equivalent reconcile on a fresh FSM. Absolute overhead (8µs) is negligible.
+
+Results file: `results/overhead_benchmark.json` (gitignored, reproducible via `python3 scripts/benchmark_overhead.py`).
 
 ---
 
@@ -211,8 +239,6 @@ Results file: `stateful/ablation_results.json` (gitignored, reproducible via `py
 ## NOT MEASURED (do not fabricate)
 
 - Redis CRIU checkpoint latency per episode
-- WASM steady-state latency (proper N=10,000 benchmark — Day 5)
-- Shadow execution overhead (reconcile_both wall time — Day 5)
-- eBPF probe overhead (pidstat with/without --real — Day 5)
+- eBPF probe overhead (pidstat with/without --real — not measured; deprioritised Day 5)
 - End-to-end MTTR including eBPF detection latency (requires real fault injection)
 - MTTR for fault types other than blk_io_latency

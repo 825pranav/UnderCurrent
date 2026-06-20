@@ -25,6 +25,7 @@ shared/cross_eval_results.json
 shared/sensitivity_results.json
 shared/safety_gate_verification.json
 stateful/ablation_results.json
+results/overhead_benchmark.json
 
 # Reports / generated scripts
 *.pdf

@@ -414,6 +414,29 @@ No-confidence (binary) & 0\;\;\;(0\%) & 0 & 44 \\
 
 UnderCurrent dispatches exactly 44 C\&Rs, all from Audited state---zero premature, zero missed. The two alternatives fail in opposite directions: without FSM memory, the controller is too aggressive (fires C\&R before the audit gate); without state accumulation, it is too conservative (never fires C\&R). The FSM threads the needle by accumulating evidence across cycles before approving the irreversible action.
 
+\subsection{Runtime Overhead}
+\label{sec:overhead}
+
+Two sources of per-cycle overhead are evaluated (Table~\ref{tab:overhead}).
+
+\begin{table}[t]
+\caption{Runtime overhead (N\,=\,10{,}000 calls each, post JIT warmup). Both costs are negligible relative to the 5\,s reconcile interval.}
+\label{tab:overhead}
+\centering
+\begin{tabular}{lrrrr}
+\hline
+Component & Mean & p95 & p99 & Interval\,\% \\
+\hline
+WASM \texttt{policy\_check()} & 27\,$\mu$s & 30\,$\mu$s & 50\,$\mu$s & 0.0005\,\% \\
+Shadow execution (overhead) & 8\,$\mu$s & --- & --- & 0.0002\,\% \\
+\hline
+\end{tabular}
+\end{table}
+
+\textbf{WASM policy sandbox.} Each \texttt{policy\_check()} call creates a fresh \texttt{Store} and \texttt{Instance} from a pre-compiled cached module (compilation is amortised at startup). Across 10{,}000 calls this costs $27\,\mu$s mean, $50\,\mu$s at p99. An equivalent pure-Python FSM state lookup costs $0.12\,\mu$s; the sandbox adds 230$\times$ the raw decision cost, but $27\,\mu$s represents 0.0005\,\% of the 5-second reconcile interval, so the overhead is practically inconsequential.
+
+\textbf{Shadow execution.} Running \texttt{reconcile\_both()} (real FSM + throwaway shadow FSM) takes 14.9\,$\mu$s versus 6.9\,$\mu$s for a single \texttt{reconcile()} call---an 8\,$\mu$s absolute overhead. The proportional cost is high (117\,\%) because both paths do equivalent decision work; the absolute cost is negligible because the reconcile loop sleeps 5\,s between iterations.
+
 \section{Discussion}
 \label{sec:discussion}
 

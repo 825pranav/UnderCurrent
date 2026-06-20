@@ -95,6 +95,22 @@ def _decide_no_fsm(score: float) -> str:
     return "no_action"
 
 
+def _decide_threshold_only(score: float) -> str:
+    """
+    Threshold-only baseline (equivalent to the shadow path — fresh FSM each cycle).
+    A fresh FSM always starts at Healthy: degrade fires on fault, making FSM Degraded.
+    C&R gate requires Audited, but Degraded != Audited, so C&R is always downgraded
+    to flush_io_queue within a single cycle.  This baseline can never approve C&R.
+    """
+    if score >= ESCALATE_THRESHOLD:
+        return "escalate"
+    if score >= REPAIR_THRESHOLD:
+        return "flush_io_queue"   # would be C&R but fresh FSM blocks it every time
+    if score >= FLUSH_THRESHOLD:
+        return "flush_io_queue"
+    return "no_action"
+
+
 def _decide_no_confidence(kernel_signals: list) -> str:
     """
     Binary scoring variant.
@@ -145,8 +161,9 @@ def run(trace_file: str = TRACE_FILE, out_file: str = OUT_FILE) -> dict:
     scores             = [t["score"]        for t in traces]
     kernel_signals_col = [t.get("kernel_signals", []) for t in traces]
 
-    no_fsm_actions    = [_decide_no_fsm(s)                      for s in scores]
-    no_conf_actions   = [_decide_no_confidence(ks)              for ks, _ in zip(kernel_signals_col, scores)]
+    no_fsm_actions         = [_decide_no_fsm(s)             for s in scores]
+    threshold_only_actions = [_decide_threshold_only(s)     for s in scores]
+    no_conf_actions        = [_decide_no_confidence(ks)     for ks in kernel_signals_col]
 
     results = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -172,23 +189,50 @@ def run(trace_file: str = TRACE_FILE, out_file: str = OUT_FILE) -> dict:
             },
             "no_fsm": {
                 "description": (
-                    "FSM gating removed.  Decision is made by threshold DAG alone: "
+                    "FSM gating removed — always-restart baseline.  "
                     "checkpoint_and_restart dispatched whenever score >= 0.80 "
-                    "regardless of FSM state.  Source: _decide_no_fsm() in this file."
+                    "regardless of FSM state (no audit phase required).  "
+                    "Source: _decide_no_fsm() in this file."
                 ),
                 "action_distribution": _action_distribution(no_fsm_actions),
                 "agreement_with_baseline": _agreement_rate(baseline_actions, no_fsm_actions),
                 "disagreements": {
                     "total": sum(b != v for b, v in zip(baseline_actions, no_fsm_actions)),
-                    "baseline_had_flush_variant_had_repair": sum(
+                    "baseline_flush_nofs_repair_UNSAFE": sum(
                         b == "flush_io_queue" and v == "checkpoint_and_restart"
                         for b, v in zip(baseline_actions, no_fsm_actions)
                     ),
-                    "baseline_had_repair_variant_had_flush": sum(
+                    "baseline_repair_nofs_flush": sum(
                         b == "checkpoint_and_restart" and v == "flush_io_queue"
                         for b, v in zip(baseline_actions, no_fsm_actions)
                     ),
                 },
+                "premature_cr_fires": sum(
+                    v == "checkpoint_and_restart" and b == "flush_io_queue"
+                    for b, v in zip(baseline_actions, no_fsm_actions)
+                ),
+            },
+            "threshold_only": {
+                "description": (
+                    "Shadow-path baseline — fresh FSM every cycle.  "
+                    "Equivalent to a memoryless threshold controller: C&R is always "
+                    "downgraded to flush_io_queue because a fresh FSM starts at Healthy "
+                    "and cannot reach Audited within a single cycle.  "
+                    "Source: _decide_threshold_only() in this file."
+                ),
+                "action_distribution": _action_distribution(threshold_only_actions),
+                "agreement_with_baseline": _agreement_rate(baseline_actions, threshold_only_actions),
+                "disagreements": {
+                    "total": sum(b != v for b, v in zip(baseline_actions, threshold_only_actions)),
+                    "baseline_repair_to_flush": sum(
+                        b == "checkpoint_and_restart" and v == "flush_io_queue"
+                        for b, v in zip(baseline_actions, threshold_only_actions)
+                    ),
+                },
+                "missed_cr_fires": sum(
+                    b == "checkpoint_and_restart" and v == "flush_io_queue"
+                    for b, v in zip(baseline_actions, threshold_only_actions)
+                ),
             },
             "no_confidence": {
                 "description": (

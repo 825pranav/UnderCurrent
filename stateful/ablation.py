@@ -1,8 +1,11 @@
-# stateful/ablation.py — Ablation Study for the Stateful Controller
+# stateful/ablation.py — Ablation Study (trace-replay variant)
 #
 # Re-processes existing trace scores to produce counterfactual decisions under
 # two ablation variants.  NO new events are generated; all inputs are read from
 # stateful/traces.jsonl (real-mode entries only).
+#
+# NOTE: evaluation/ablation.py is the trial-based ablation used for paper results.
+# This file is a lightweight replay-only variant for quick local exploration.
 #
 # Data source:  stateful/traces.jsonl  (read-only)
 # Results out:  stateful/ablation_results.json

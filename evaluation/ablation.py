@@ -1,4 +1,7 @@
 # evaluation/ablation.py — UnderCurrent Stateful Controller Ablation Study
+# (trial-based; results cited in paper — outputs evaluation/results/ablation/)
+#
+# See also: stateful/ablation.py — lightweight trace-replay variant for local exploration.
 #
 # Creates four ablation variants of the stateful controller and runs each
 # through the trial harness to quantify the contribution of individual

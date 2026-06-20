@@ -38,8 +38,8 @@ except ImportError:
 
     def _wasm_policy_check(action, fsm_state, score):  # noqa: E302
         """
-        Python-level policy fallback mirroring the WAT module logic exactly.
-        Same FSM state checks and score thresholds as stateful/wasm/*.wat.
+        Python-level policy fallback used when wasmtime is unavailable.
+        Matches stateful/wasm/*.wat gate logic; FSM constraints are still enforced.
         FSM encoding: Healthy=0  Degraded=1  Audited=2  Repairing=3  Recovered=4
         """
         _FSM_CODE = {
@@ -69,10 +69,7 @@ except ImportError:
                     f"Python fallback: checkpoint_and_restart blocked — "
                     f"score {score:.3f} < 0.80"
                 )
-            # Allow Audited only — mirrors reconcile.py Step 3.
-            # Repairing is intentionally excluded: the WAT module allows it as a
-            # defence-in-depth gate for future code paths, but the Python reconcile
-            # layer never dispatches C&R from Repairing, so neither does this fallback.
+            # Allow Audited only — matches reconcile.py Step 3 and checkpoint_restart.wat.
             if fsm_code == 2:   # Audited
                 return True, "Python fallback: policy satisfied"
             return False, (
@@ -405,7 +402,7 @@ if __name__ == "__main__":
     print(f"  flush/Healthy: WASM-blocked as expected ✓")
 
     # escalate — allowed from Degraded with score >= 0.95
-    d = execute({"container": "etcd", "action": "escalate",
+    d = execute({"container": "mysql", "action": "escalate",
                  "mode": "real", "fsm_state_after": "Degraded", "score": 0.97})
     assert d["success"] is True and d["stdout"] != "", d
     assert d["wasm_blocked"] is False, d

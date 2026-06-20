@@ -246,13 +246,13 @@ if __name__ == "__main__":
                       "event": "blk_io_latency", "latency_us": 15_000,
                       "time": now, "node_type": "F"})
 
-    # etcd: volume mount lost → score 0.97 → escalate
-    store.record({"container": "etcd", "pid": 201,
+    # mysql: volume mount lost → score 0.97 → escalate
+    store.record({"container": "mysql", "pid": 201,
                   "event": "volume_mount_lost", "volume_path": "/data",
                   "time": now, "node_type": "F"})
 
-    # redis-persist: low score (1 VFS error → 0.293) → no_action
-    store.record({"container": "redis-persist", "pid": 301,
+    # redis: low score (1 VFS error → 0.293) → no_action
+    store.record({"container": "redis", "pid": 301,
                   "event": "vfs_write_error", "time": now, "node_type": "F"})
 
     decisions = reconcile(store, fsm, shadow=False)
@@ -268,11 +268,11 @@ if __name__ == "__main__":
     assert by_name["postgres"]["action"] == "flush_io_queue", by_name["postgres"]
     assert by_name["postgres"]["fsm_state"] == "Healthy"
 
-    # etcd: score 0.97 → escalate; degrade fires Healthy→Degraded; Degraded is allowed → escalate
-    assert by_name["etcd"]["action"] == "escalate", by_name["etcd"]
+    # mysql: score 0.97 → escalate; degrade fires Healthy→Degraded; Degraded is allowed → escalate
+    assert by_name["mysql"]["action"] == "escalate", by_name["mysql"]
 
-    # redis-persist: score 0.293 < 0.50 → no_action
-    assert by_name["redis-persist"]["action"] == "no_action", by_name["redis-persist"]
+    # redis: score 0.293 < 0.50 → no_action
+    assert by_name["redis"]["action"] == "no_action", by_name["redis"]
 
     # Reversibility gate: no irreversible action should ever appear
     for d in decisions:

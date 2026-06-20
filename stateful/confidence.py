@@ -114,35 +114,41 @@ if __name__ == "__main__":
                       "event": "blk_io_latency", "latency_us": 15_000,
                       "time": now, "node_type": "F"})
 
-    # mongo: 2 VFS errors → 2/3 * 0.88 ≈ 0.5867
+    # mysql: 2 VFS errors → 2/3 * 0.88 ≈ 0.5867
     for i in range(2):
-        store.record({"container": "mongo", "pid": 200 + i,
+        store.record({"container": "mysql", "pid": 200 + i,
                       "event": "vfs_write_error", "time": now, "node_type": "F"})
 
-    # etcd: volume mount lost → 0.97
-    store.record({"container": "etcd", "pid": 301, "event": "volume_mount_lost",
+    # redis: volume mount lost → 0.97
+    store.record({"container": "redis", "pid": 301, "event": "volume_mount_lost",
                   "volume_path": "/data", "time": now, "node_type": "F"})
 
-    # kafka: mount lost then restored → resolved → 0.0 for mount; check other signals
-    store.record({"container": "kafka", "pid": 401, "event": "volume_mount_lost",
-                  "volume_path": "/logs", "time": now - 5, "node_type": "F"})
-    store.record({"container": "kafka", "pid": 402, "event": "volume_mount_restored",
-                  "volume_path": "/logs", "time": now, "node_type": "F"})
+    # redis (second store): mount lost then restored → score drops to 0.0
+    store2 = StatefulStateStore(window_seconds=60)
+    store2.record({"container": "redis", "pid": 401, "event": "volume_mount_lost",
+                   "volume_path": "/logs", "time": now - 5, "node_type": "F"})
+    store2.record({"container": "redis", "pid": 402, "event": "volume_mount_restored",
+                   "volume_path": "/logs", "time": now, "node_type": "F"})
 
-    # redis-persist: only normal-latency events → 0.0
+    # mysql (second store): only normal-latency events → 0.0
+    store3 = StatefulStateStore(window_seconds=60)
     for i in range(3):
-        store.record({"container": "redis-persist", "pid": 500 + i,
-                      "event": "blk_io_latency", "latency_us": 500,
-                      "time": now, "node_type": "F"})
+        store3.record({"container": "mysql", "pid": 500 + i,
+                       "event": "blk_io_latency", "latency_us": 500,
+                       "time": now, "node_type": "F"})
 
     scores = score_all(store)
     for c, s in sorted(scores.items()):
         print(f"  {c:<16} → confidence: {s}")
 
-    assert scores["postgres"]      == IO_LATENCY_SCORE_MAX,               f"Got {scores['postgres']}"
-    assert scores["mongo"]         == round(2 / 3 * VFS_ERROR_SCORE_MAX, 4), f"Got {scores['mongo']}"
-    assert scores["etcd"]          == MOUNT_LOSS_SCORE,                   f"Got {scores['etcd']}"
-    assert scores["kafka"]         == 0.0,                                f"Got {scores['kafka']}"
-    assert scores["redis-persist"] == 0.0,                                f"Got {scores['redis-persist']}"
+    assert scores["postgres"] == IO_LATENCY_SCORE_MAX,                  f"Got {scores['postgres']}"
+    assert scores["mysql"]    == round(2 / 3 * VFS_ERROR_SCORE_MAX, 4), f"Got {scores['mysql']}"
+    assert scores["redis"]    == MOUNT_LOSS_SCORE,                      f"Got {scores['redis']}"
+
+    scores2 = score_all(store2)
+    assert scores2["redis"] == 0.0, f"mount-restored → expected 0.0, got {scores2['redis']}"
+
+    scores3 = score_all(store3)
+    assert scores3["mysql"] == 0.0, f"normal-latency-only → expected 0.0, got {scores3['mysql']}"
 
     print("\nAll self-tests passed.")

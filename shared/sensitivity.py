@@ -1,7 +1,10 @@
-# shared/sensitivity.py — Threshold Sensitivity Analysis
+# shared/sensitivity.py — Threshold Sensitivity Analysis (trace-replay)
 #
-# Sweeps FLUSH_THRESHOLD and REPAIR_THRESHOLD over defined ranges and reports
-# how the action distribution of the stateful controller changes at each setting.
+# Sweeps FLUSH_THRESHOLD and REPAIR_THRESHOLD over existing stateful/traces.jsonl.
+# Outputs shared/sensitivity_results.json (JSON).
+#
+# NOTE: evaluation/sensitivity.py is the trial-based sweep used for paper results.
+# This file is a lighter replay-only variant for quick local exploration.
 #
 # Data source:  stateful/traces.jsonl  (real-mode entries only, read-only)
 # Results out:  shared/sensitivity_results.json

@@ -132,7 +132,7 @@ if __name__ == "__main__":
                   "latency_us": 15_000, "time": now, "node_type": "F"})
     store.record({"container": "postgres", "pid": 103, "event": "vfs_write_error",
                   "time": now, "node_type": "F"})
-    store.record({"container": "mongo", "pid": 201, "event": "volume_mount_lost",
+    store.record({"container": "mysql", "pid": 201, "event": "volume_mount_lost",
                   "volume_path": "/data", "time": now, "node_type": "F"})
     # Old event — should be pruned (30s ago, window is 10s)
     store.record({"container": "postgres", "pid": 999, "event": "blk_io_latency",
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     print("Postgres I/O stats:", stats)
     assert stats["high_count"] == 1    # only 15_000 µs event qualifies
 
-    assert store.is_volume_mounted("mongo") is False
+    assert store.is_volume_mounted("mysql") is False
     assert store.is_volume_mounted("postgres") is True   # no mount events → defaults True
     assert store.get_vfs_error_count("postgres") == 1
 

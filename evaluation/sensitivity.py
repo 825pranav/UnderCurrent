@@ -1,4 +1,7 @@
 # evaluation/sensitivity.py — UnderCurrent Parameter Sensitivity Analysis
+# (trial-based; results cited in paper — outputs evaluation/results/sensitivity_results.csv)
+#
+# See also: shared/sensitivity.py — lightweight trace-replay variant for local exploration.
 #
 # Sweeps key controller parameters to characterise how performance degrades
 # or improves as each parameter moves away from its default value.

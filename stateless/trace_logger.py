@@ -45,7 +45,8 @@ def log_decision(decision: dict, action_result: dict) -> dict:
     tag = "[SHADOW]" if entry["mode"] == "shadow" else "[REAL]"
     print(
         f"[trace]{tag} {entry['container']} | score={entry['score']} "
-        f"| action={entry['action']} | why: {entry['why']}"
+        f"| action={entry['action']} | why: {entry['why']}",
+        flush=True,
     )
     return entry
 

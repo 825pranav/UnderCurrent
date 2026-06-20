@@ -20,7 +20,7 @@ def restart(container: str) -> dict:
     Run `docker restart <container>`.
     Returns a result dict with success/failure info.
     """
-    print(f"[actions] restarting container: {container}")
+    print(f"[actions] restarting container: {container}", flush=True)
     try:
         result = subprocess.run(
             ["docker", "restart", container],
@@ -62,7 +62,7 @@ def reschedule(container: str) -> dict:
     """
     Simulated reschedule — logs intent only, no actual k8s call.
     """
-    print(f"[actions] rescheduling container: {container}")
+    print(f"[actions] rescheduling container: {container}", flush=True)
     return {
         "container":     container,
         "action":        "reschedule",
@@ -76,7 +76,7 @@ def reschedule(container: str) -> dict:
 
 def no_action(container: str) -> dict:
     """No-op — score was below threshold."""
-    print(f"[actions] no_action for container: {container}")
+    print(f"[actions] no_action for container: {container}", flush=True)
     return {
         "container":     container,
         "action":        "no_action",
@@ -98,7 +98,7 @@ def execute(decision: dict) -> dict:
     mode = decision.get("mode", "real")
 
     if mode == "shadow":
-        print(f"[actions][SHADOW] would execute '{action}' on {container} — skipping")
+        print(f"[actions][SHADOW] would execute '{action}' on {container} — skipping", flush=True)
         return {
             "container":     container,
             "action":        action,

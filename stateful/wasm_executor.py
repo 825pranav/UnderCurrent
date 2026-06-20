@@ -147,7 +147,8 @@ if __name__ == "__main__":
 
         # checkpoint_and_restart — valid states
         ("checkpoint_and_restart", "Audited",   0.85, True),
-        ("checkpoint_and_restart", "Repairing", 0.82, True),
+        # checkpoint_and_restart — Repairing blocked (reconcile.py Step 3 enforces Audited-only)
+        ("checkpoint_and_restart", "Repairing", 0.82, False),
         # checkpoint_and_restart — blocked (sequence not satisfied)
         ("checkpoint_and_restart", "Degraded",  0.85, False),
         ("checkpoint_and_restart", "Healthy",   0.85, False),

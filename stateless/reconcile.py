@@ -86,7 +86,8 @@ def reconcile(state_store, shadow: bool = False) -> list:
         tag = "[SHADOW]" if shadow else "[REAL]"
         print(
             f"{tag} container={container} score={score} "
-            f"→ {decision['action']}  ({decision['reason']})"
+            f"→ {decision['action']}  ({decision['reason']})",
+            flush=True,
         )
 
     return decisions
@@ -97,9 +98,9 @@ def reconcile_both(state_store) -> dict:
     Run both real and shadow paths and return both sets of decisions.
     Useful for comparing what the system does vs. what it would have done.
     """
-    print("--- Real path ---")
+    print("--- Real path ---", flush=True)
     real = reconcile(state_store, shadow=False)
-    print("--- Shadow path ---")
+    print("--- Shadow path ---", flush=True)
     shadow = reconcile(state_store, shadow=True)
     return {"real": real, "shadow": shadow}
 

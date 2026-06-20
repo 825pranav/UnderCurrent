@@ -2,7 +2,7 @@
 #
 # Writes decision traces to stateful/traces.jsonl (append-only JSON lines).
 #
-# Schema version: 1.2.0 (see shared/trace_schema.py for the full field catalogue).
+# Schema version: 1.3.0 (see shared/trace_schema.py for the full field catalogue).
 # All base fields are present in every entry; stateful extension fields are additive.
 # A consumer reading this file alongside stateless/traces.jsonl will see unknown
 # keys in stateful entries and must ignore them gracefully (standard JSON tolerance).
@@ -120,7 +120,7 @@ if __name__ == "__main__":
             "dag_pattern": "io_degradation_critical", "blocked_reason": None,
         },
         {
-            "container": "mongo", "score": 0.60, "action": "flush_io_queue",
+            "container": "mysql", "score": 0.60, "action": "flush_io_queue",
             "reason": "score 0.60 >= flush threshold 0.50",
             "mode": "shadow", "timestamp": now,
             "fsm_state": "Healthy", "fsm_transition": "Healthy→Degraded",
@@ -128,7 +128,7 @@ if __name__ == "__main__":
             "dag_pattern": "io_degradation_minor", "blocked_reason": None,
         },
         {
-            "container": "etcd", "score": 0.30, "action": "no_action",
+            "container": "redis", "score": 0.30, "action": "no_action",
             "reason": "score 0.30 below flush threshold 0.50",
             "mode": "real", "timestamp": now,
             "fsm_state": "Healthy", "fsm_transition": None,
@@ -162,7 +162,7 @@ if __name__ == "__main__":
     traces = read_traces()
     assert len(traces) == 3, f"Expected 3 traces, got {len(traces)}"
     last1 = read_traces(n=1)
-    assert last1[0]["container"] == "etcd"
+    assert last1[0]["container"] == "redis"
 
     os.unlink(tmp.name)
     TRACE_FILE = _orig

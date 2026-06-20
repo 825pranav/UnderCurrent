@@ -2,15 +2,14 @@
 ;;
 ;; checkpoint_and_restart is major remediation (CRIU checkpoint + docker restart).
 ;; It is valid when:
-;;   1. FSM state is Audited (2) or Repairing (3)
-;;      - Audited:   container was flushed and is under observation; escalating
-;;        to checkpoint is the correct next step in the FSM sequence.
-;;      - Repairing: a checkpoint was already approved; a retry is permitted
-;;        if the action did not fully resolve the issue.
+;;   1. FSM state is Audited (2) — container has been flushed and observed;
+;;      checkpoint is the correct next escalation in the FSM sequence.
 ;;   2. score >= 0.80 (REPAIR_THRESHOLD)
 ;;
 ;; Blocked in: Healthy, Degraded (flush must happen first — FSM sequence
-;; enforced), Recovered (container is stable; no major action needed).
+;; enforced), Repairing (reconcile.py Step 3 enforces Audited-only dispatch
+;; before the WASM gate; a retry from Repairing is not a supported path),
+;; Recovered (container is stable; no major action needed).
 ;;
 ;; This is the key FSM-sequence enforcement for the research paper:
 ;; checkpoint_and_restart cannot be dispatched from Degraded directly —
@@ -33,11 +32,7 @@
     (if (i32.eq (local.get $fsm_state) (i32.const 2))
       (then (return (i32.const 1)))
     )
-    ;; FSM must be Repairing (3) — retry permitted
-    (if (i32.eq (local.get $fsm_state) (i32.const 3))
-      (then (return (i32.const 1)))
-    )
-    ;; Degraded, Healthy, Recovered: blocked — sequence not satisfied
+    ;; All other states (Healthy, Degraded, Repairing, Recovered): blocked
     (i32.const 0)
   )
 )

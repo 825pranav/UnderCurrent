@@ -6,9 +6,10 @@
 # GROUNDING: Every number in the output is derived from one of these files:
 #   stateful/traces.jsonl         — stateful real + shadow decisions
 #   stateless/traces.jsonl        — stateless real + shadow decisions
-#   stateful/divergence_log.jsonl — shadow/real divergence records (stateful only)
+#   stateful/divergence_log.jsonl  — shadow/real divergence records (stateful track)
+#   stateless/divergence_log.jsonl — shadow/real divergence records (stateless track,
+#                                    written only when run with --mode divergence)
 #
-# No stateless/divergence_log.jsonl exists; stateless divergence_rate is 0.0.
 # stateless traces include a 'reversibility' field; reversibility_ratio is measured.
 #
 # Usage (from repo root):
@@ -148,8 +149,7 @@ def run(out_path: str = _DEFAULT_OUT) -> dict:
     if not os.path.exists(_PATHS["stateless_div_log"]):
         caveats.append(
             "stateless/divergence_log.jsonl does not exist — stateless divergence_rate "
-            "is 0.0. The stateless controller does not write a divergence log because "
-            "real and shadow paths always agree (same pure-threshold DAG, no FSM state)."
+            "is 0.0. Run with --mode divergence to generate it."
         )
 
     caveats.append(

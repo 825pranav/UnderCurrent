@@ -131,7 +131,14 @@ def _stateful_decide_all(f_store, fsm,
     Returns:
         List of decision dicts, one per container.
     """
-    import confidence as sf_conf
+    import importlib.util as _ilu
+    _spec = _ilu.spec_from_file_location(
+        'sf_confidence',
+        os.path.join(_REPO_ROOT, 'stateful', 'confidence.py'),
+    )
+    _mod = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    sf_conf = _mod
 
     decisions = []
     for container in f_store.get_all_containers():

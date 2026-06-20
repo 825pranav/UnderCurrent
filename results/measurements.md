@@ -184,6 +184,30 @@ This is NOT a reliable steady-state number. Proper 10,000-call benchmark is Day 
 
 ---
 
+## Ablation Study — Decision Policy Comparison (Day 4)
+
+Source: `stateful/ablation.py` run on `stateful/traces.jsonl` (real-mode, node_type=F entries only).
+N = 2,282 traces. Input `score` values held constant; decision mechanism varied.
+
+| Controller | C&R | flush | no_action | Unsafe C&R | Missed C&R | Agreement vs baseline |
+|--|--|--|--|--|--|--|
+| UnderCurrent (full FSM) | 44 (1.93%) | 51 (2.23%) | 2187 (95.84%) | 0 | 0 | 1.0000 |
+| No-FSM (always-restart) | 88 (3.86%) | 7 (0.31%) | 2187 (95.84%) | 44 | 0 | 0.9807 |
+| Threshold-only (shadow) | 0 (0%) | 95 (4.16%) | 2187 (95.84%) | 0 | 44 | 0.9807 |
+| No-confidence (binary) | 0 (0%) | 102 (4.47%) | 2180 (95.53%) | 0 | 44 | 0.9777 |
+
+**Definitions:**
+- Unsafe C&R: variant fires C&R in a cycle where full FSM would issue flush (pre-audit state).
+- Missed C&R: variant issues flush in a cycle where full FSM approves C&R (post-audit state).
+
+**Key finding:** No-FSM fires 2× as many C&Rs, half premature. Threshold-only and No-confidence never reach C&R at all (0 dispatches). UnderCurrent is the only variant with 0 unsafe + 0 missed.
+
+**Connection to M2:** The 44 cycles where Threshold-only misses C&R are exactly the 44 divergent cycles in $M_2 = 0.3697$ (44 of 119 active Phase-2 cycles). Shadow path = Threshold-only. M2 quantifies the frequency at which FSM memory changes the outcome.
+
+Results file: `stateful/ablation_results.json` (gitignored, reproducible via `python3 stateful/ablation.py`).
+
+---
+
 ## NOT MEASURED (do not fabricate)
 
 - Redis CRIU checkpoint latency per episode
@@ -192,5 +216,3 @@ This is NOT a reliable steady-state number. Proper 10,000-call benchmark is Day 
 - eBPF probe overhead (pidstat with/without --real — Day 5)
 - End-to-end MTTR including eBPF detection latency (requires real fault injection)
 - MTTR for fault types other than blk_io_latency
-- Baseline A (always-restart) unsafe action count — Day 4
-- Ablation (no-FSM) unsafe C&R count — Day 4

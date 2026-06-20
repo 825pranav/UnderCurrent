@@ -385,6 +385,35 @@ M6 (suppression rate)  & 0.0000 & 0.0000 & 0.3697 & 44 FSM-gated actions$^{b}$ \
 
 All nine scenarios in Table~\ref{tab:scenarios} produced the expected action. Accuracy: 1.00. The equality $M_2 = M_6 = 0.3697$ is not a coincidence. Both metrics count the same thing from different angles: cycles where the real FSM's accumulated history changes the dispatched action are, by construction, cycles where the safety gate fires. Whether this equality holds under other fault patterns is unknown and should not be assumed.
 
+\subsection{Baseline Comparison and Ablation}
+\label{sec:ablation}
+
+To answer ``why is the FSM necessary?'', we replayed the $N = 2{,}282$ real stateful trace entries from Phase~2 under three counterfactual decision policies, holding the recorded \texttt{score} values constant while varying only the decision mechanism (Table~\ref{tab:ablation}).
+
+\begin{table}[t]
+\caption{Decision-policy ablation on $N = 2{,}282$ real Type-F traces. Input confidence scores are held constant; only the decision mechanism varies. \emph{Unsafe C\&R}: dispatched from a pre-audit FSM state. \emph{Missed C\&R}: legitimate checkpoint opportunity suppressed by a memoryless or binary policy.}
+\label{tab:ablation}
+\centering
+\begin{tabular}{lrcc}
+\hline
+Controller & C\&R dispatched & Unsafe C\&R & Missed C\&R \\
+\hline
+UnderCurrent (full FSM) & 44\;(1.93\%) & 0 & 0 \\
+No-FSM (always-restart) & 88\;(3.86\%) & 44 & 0 \\
+Threshold-only (shadow) & 0\;\;\;(0\%) & 0 & 44 \\
+No-confidence (binary) & 0\;\;\;(0\%) & 0 & 44 \\
+\hline
+\end{tabular}
+\end{table}
+
+\textbf{No-FSM.} Removing FSM state gating doubles the C\&R rate to 88 dispatches; 44 of these are premature---they fire from a pre-audit FSM state where the full controller issues \texttt{flush\_io\_queue} and defers C\&R to the following cycle. All 44 premature dispatches coincide exactly with cycles where the FSM has not yet reached Audited.
+
+\textbf{Threshold-only (shadow path).} A stateless threshold policy---equivalent to instantiating a fresh FSM every cycle---can never reach Audited within a single cycle and therefore never approves C\&R. This variant misses all 44 legitimate C\&R opportunities. Notably, this is the same computation already performed by \texttt{reconcile\_both()} in every cycle: $M_2 = 0.3697$ (44 divergent cycles of 119 active fault-injection cycles) quantifies exactly how often the shadow path would have made the wrong call.
+
+\textbf{No-confidence.} Replacing the continuous score with a binary fault/no-fault signal (score $\in \{0, 0.75\}$) also yields 0 C\&R dispatches, because $0.75 < \theta_{\mathrm{repair}} = 0.80$: every fault cycle is downgraded to \texttt{flush\_io\_queue}. Graduated confidence scoring is necessary for C\&R to be reachable at all.
+
+UnderCurrent dispatches exactly 44 C\&Rs, all from Audited state---zero premature, zero missed. The two alternatives fail in opposite directions: without FSM memory, the controller is too aggressive (fires C\&R before the audit gate); without state accumulation, it is too conservative (never fires C\&R). The FSM threads the needle by accumulating evidence across cycles before approving the irreversible action.
+
 \section{Discussion}
 \label{sec:discussion}
 

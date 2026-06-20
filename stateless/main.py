@@ -62,6 +62,7 @@ def _simulate_events(store: StateStore, stop_event: threading.Event, rate: float
             "pid":        random.randint(1000, 99999),
             "event":      random.choice(SIMULATED_EVENTS),
             "time":       time.time(),
+            "node_type":  "S",
         }
         store.record(event)
         print(f"  {_DIM}[sim-s] {json.dumps(event)}{_RESET}", flush=True)
@@ -94,6 +95,7 @@ def _real_events(store: StateStore, stop_event: threading.Event):
                 "pid":       raw.pid,
                 "event":     "process_exit" if raw.type == 0 else "tcp_connect",
                 "time":      time.time(),
+                "node_type": "S",
             }
             store.record(record)
             print(f"  {_DIM}[ebpf-s] {json.dumps(record)}{_RESET}", flush=True)
@@ -120,7 +122,7 @@ def _reconcile_loop(store: StateStore, interval: float, mode: str,
     """
     cycle = 0
     while not stop_event.is_set():
-        time.sleep(interval)
+        stop_event.wait(interval)
         if stop_event.is_set():
             break
 

@@ -61,7 +61,7 @@ class StatefulStateStore:
         """Remove events outside the sliding time window."""
         cutoff = time.time() - self.window
         self._events[container] = [
-            e for e in self._events[container] if e["time"] >= cutoff
+            e for e in self._events[container] if e.get("time", 0) >= cutoff
         ]
 
     def get_failures(self, container: str) -> list:

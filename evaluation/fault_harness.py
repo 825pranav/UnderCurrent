@@ -17,9 +17,14 @@ import random
 import time
 
 # ── sys.path: ensure sibling packages are importable ──────────────────────────
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'stateless'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'stateful'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
+def _add_repo_paths():
+    _base = os.path.dirname(os.path.abspath(__file__))
+    for rel in ('..', 'shared'), ('..', 'stateful'), ('..', 'stateless'):
+        p = os.path.normpath(os.path.join(_base, *rel))
+        if p not in sys.path:
+            sys.path.insert(0, p)
+
+_add_repo_paths()
 
 
 # ── Fault scenario catalog ─────────────────────────────────────────────────────

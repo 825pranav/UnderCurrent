@@ -16,6 +16,7 @@
 #   escalate               (conditional)  — page on-call; suppressed in shadow mode
 #   volume_delete          (irreversible) — BLOCKED by gate; never reaches execute()
 
+import collections
 import math
 import subprocess
 import time
@@ -68,11 +69,15 @@ except ImportError:
                     f"Python fallback: checkpoint_and_restart blocked — "
                     f"score {score:.3f} < 0.80"
                 )
-            if fsm_code in (2, 3):   # Audited or Repairing
+            # Allow Audited only — mirrors reconcile.py Step 3.
+            # Repairing is intentionally excluded: the WAT module allows it as a
+            # defence-in-depth gate for future code paths, but the Python reconcile
+            # layer never dispatches C&R from Repairing, so neither does this fallback.
+            if fsm_code == 2:   # Audited
                 return True, "Python fallback: policy satisfied"
             return False, (
                 f"Python fallback: checkpoint_and_restart blocked — "
-                f"FSM={fsm_state!r} not in (Audited, Repairing)"
+                f"FSM={fsm_state!r} not in (Audited)"
             )
 
         if action == "escalate":
@@ -89,8 +94,8 @@ except ImportError:
         return True, f"Python fallback: unknown action {action!r} — defaulting to allow"
 
 # ── WASM latency tracking ──────────────────────────────────────────────────────
-# Accumulated per-call latency samples in nanoseconds.  Populated by execute().
-_wasm_latency_ns: list = []
+# Rolling window of the last 10,000 per-call latency samples in nanoseconds.
+_wasm_latency_ns: collections.deque = collections.deque(maxlen=10_000)
 
 
 def wasm_latency_stats() -> dict:

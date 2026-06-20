@@ -6,8 +6,8 @@ import time
 
 # --- Tunable thresholds ---
 PROCESS_EXIT_BASE = 0.95        # base score for any process_exit event
-TCP_FAIL_SCALE_MAX = 0.90       # ceiling score for tcp_connect
-TCP_FAIL_SCALE_RATE = 5         # failures needed to reach ceiling
+TCP_CONNECT_SCALE_MAX = 0.90       # ceiling score for tcp_connect
+TCP_CONNECT_SCALE_RATE = 5         # failures needed to reach ceiling
 
 
 def score_process_exit(failures: list) -> float:
@@ -25,14 +25,14 @@ def score_tcp_connect(failures: list) -> float:
     """
     tcp_connect confidence scales with frequency within the window.
     0 failures → 0.0
-    TCP_FAIL_SCALE_RATE or more failures → TCP_FAIL_SCALE_MAX
+    TCP_CONNECT_SCALE_RATE or more failures → TCP_CONNECT_SCALE_MAX
     """
     tcp_events = [e for e in failures if e.get("event") == "tcp_connect"]
     count = len(tcp_events)
     if count == 0:
         return 0.0
-    ratio = min(count / TCP_FAIL_SCALE_RATE, 1.0)
-    return round(ratio * TCP_FAIL_SCALE_MAX, 4)
+    ratio = min(count / TCP_CONNECT_SCALE_RATE, 1.0)
+    return round(ratio * TCP_CONNECT_SCALE_MAX, 4)
 
 
 def compute_confidence(container: str, state_store) -> float:
@@ -89,7 +89,7 @@ if __name__ == "__main__":
 
     assert scores["nginx"] == 0.95, f"Expected 0.95, got {scores['nginx']}"
     assert scores["pyapp"] == 0.54, f"Expected 0.54, got {scores['pyapp']}"
-    assert scores["redis"] == TCP_FAIL_SCALE_MAX, f"Expected {TCP_FAIL_SCALE_MAX}, got {scores['redis']}"
+    assert scores["redis"] == TCP_CONNECT_SCALE_MAX, f"Expected {TCP_CONNECT_SCALE_MAX}, got {scores['redis']}"
     assert scores["clean"] == 0.0, f"Expected 0.0, got {scores['clean']}"
 
     print("\nAll self-tests passed.")

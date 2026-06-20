@@ -223,12 +223,13 @@ class EventListener:
     def listen(self):
         self.b["f_events"].open_perf_buffer(self.handle_event)
         self.b["vol_events"].open_perf_buffer(self.handle_vol_event)
-        while True:
-            try:
+        try:
+            while True:
                 self.b.perf_buffer_poll()
-            except KeyboardInterrupt:
-                print("\n[undercurrent-f] stopping.", flush=True)
-                break
+        except KeyboardInterrupt:
+            print("\n[undercurrent-f] stopping.", flush=True)
+        finally:
+            self.b.cleanup()
 
 
 if __name__ == "__main__":

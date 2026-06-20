@@ -48,13 +48,11 @@ import time
 _here = os.path.dirname(os.path.abspath(__file__))
 _repo = os.path.dirname(_here)
 
+sys.path.insert(0, os.path.join(_repo, "shared"))
+from constants import FLUSH_THRESHOLD, REPAIR_THRESHOLD, ESCALATE_THRESHOLD
+
 TRACE_FILE  = os.path.join(_here, "traces.jsonl")
 OUT_FILE    = os.path.join(_here, "ablation_results.json")
-
-# Thresholds — must mirror stateful/reconcile.py exactly for 'baseline' to be reproducible
-FLUSH_THRESHOLD    = 0.50
-REPAIR_THRESHOLD   = 0.80
-ESCALATE_THRESHOLD = 0.95
 
 # Fault signals that indicate a non-nominal state (used by no_confidence variant)
 _FAULT_SIGNALS = frozenset({

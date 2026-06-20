@@ -40,17 +40,23 @@ COMMON_EXTENSION_FIELDS = [
 # Any consumer reading a mixed trace file must handle missing keys gracefully.
 STATEFUL_FIELDS = [
     "fsm_state",        # str       — FSM state of the container BEFORE this decision
+    "fsm_state_after",  # str       — FSM state AFTER all transitions this cycle
     "fsm_transition",   # str|None  — transition applied this cycle, e.g. "Healthy→Degraded"
     "reversibility",    # str       — "reversible" | "conditional" | "irreversible"
     "blocked_reason",   # str|None  — why a higher-severity action was blocked (if any)
+    "wasm_blocked",     # bool      — True if WASM sandbox blocked the action
+    "wasm_reason",      # str|None  — reason string from WASM sandbox (if blocked)
 ]
 
 ALL_FIELDS = BASE_FIELDS + COMMON_EXTENSION_FIELDS + STATEFUL_FIELDS
 
-SCHEMA_VERSION = "1.2.0"
+SCHEMA_VERSION = "1.3.0"
 # Version semantics:
 #   major — incompatible change (rename / remove field)  → requires review before merge
 #   minor — new field group added                        → backward compatible
 #   patch — documentation / comment update only
+# 1.3.0 — added fsm_state_after, wasm_blocked, wasm_reason to STATEFUL_FIELDS
+#          (these were written by stateful/trace_logger.py since 1.2.0 but absent
+#           from the schema catalogue — now formally declared)
 # 1.2.0 — node_type, kernel_signals, dag_pattern promoted to COMMON_EXTENSION_FIELDS
 #          (now present in both S and F traces)

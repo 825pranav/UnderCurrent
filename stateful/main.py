@@ -50,7 +50,7 @@ BANNER = f"""{_CYAN}{_BOLD}
 ║     Stateful · FSM-Gated · Risk-Aware            ║
 ╚══════════════════════════════════════════════════╝{_RESET}"""
 
-SIMULATED_CONTAINERS = ["postgres", "mongo", "redis-persist", "kafka-broker", "etcd"]
+SIMULATED_CONTAINERS = ["postgres", "redis", "mysql"]
 
 _EVENT_WEIGHTS = [
     ("blk_io_latency",       0.55),

@@ -70,18 +70,20 @@ class EventListener:
             "pid":       event.pid,
             "tgid":      event.tgid,
             "event":     event_type,
-            "time":      time.time()
+            "time":      time.time(),
+            "node_type": "S",
         }
         print(json.dumps(log), flush=True)
 
     def listen(self):
         self.b["events"].open_perf_buffer(self.handle_event)
-        while True:
-            try:
+        try:
+            while True:
                 self.b.perf_buffer_poll()
-            except KeyboardInterrupt:
-                print("\n[undercurrent] stopping.", flush=True)
-                break
+        except KeyboardInterrupt:
+            print("\n[undercurrent] stopping.", flush=True)
+        finally:
+            self.b.cleanup()
 
 if __name__ == "__main__":
     listener = EventListener()

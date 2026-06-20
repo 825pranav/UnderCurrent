@@ -20,10 +20,8 @@
 #   python3 streamlit_dash.py
 
 import os
+import subprocess
 import sys
 
-# Delegate entirely to the unified launcher with --mode real (the default).
-launcher = os.path.join(os.path.dirname(__file__), "integration", "launcher.py")
-sys.argv = [launcher, "--mode", "real"] + sys.argv[1:]
-
-exec(open(launcher).read(), {"__name__": "__main__", "__file__": launcher})
+launcher = os.path.join(os.path.dirname(os.path.abspath(__file__)), "integration", "launcher.py")
+sys.exit(subprocess.run([sys.executable, launcher, "--mode", "real"] + sys.argv[1:]).returncode)

@@ -14,23 +14,20 @@
 # Signature: reconcile(state_store, fsm, shadow=False)
 # The extra `fsm` parameter is stateful-specific; the stateless track omits it.
 
+import os
+import sys
 import time
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "shared"))
+from constants import (
+    FLUSH_THRESHOLD, REPAIR_THRESHOLD, ESCALATE_THRESHOLD, DEGRADE_THRESHOLD,
+)
 from confidence import (
     score_all, IO_HIGH_LATENCY_US,
     IO_LATENCY_SCORE_MAX, MOUNT_LOSS_SCORE,
 )
 from actions import REVERSIBILITY, IRREVERSIBLE_ACTIONS
 from fsm import ContainerFSM
-
-# ── Tunable thresholds ────────────────────────────────────────────────────────
-# Aligned with stateless thresholds where possible for cross-track consistency:
-#   REPAIR_THRESHOLD    == stateless RESTART_THRESHOLD    (0.80)
-#   ESCALATE_THRESHOLD  == stateless RESCHEDULE_THRESHOLD (0.95)
-FLUSH_THRESHOLD     = 0.50   # minor I/O issue → flush queues
-REPAIR_THRESHOLD    = 0.80   # severe degradation → checkpoint-restart
-ESCALATE_THRESHOLD  = 0.95   # critical failure → escalate (mount loss, extreme IO)
-DEGRADE_THRESHOLD   = FLUSH_THRESHOLD   # FSM "degrade" trigger threshold
 
 # ── DAG fault-pattern names (populate 'dag_pattern' in decision trace) ────────
 _PATTERN = {
@@ -160,11 +157,6 @@ def _decide(container: str, score: float, failures: list, fsm: ContainerFSM) -> 
         action         = "flush_io_queue"
         blocked_reason = f"escalate blocked: FSM is {current}; need Degraded/Audited/Repairing"
         reason         = blocked_reason
-        if current == "Degraded":
-            t = fsm.apply(container, "audit")
-            if t:
-                fsm_transition = f"{t[0]}→{t[1]}"
-                current = fsm.state(container)
 
     # ── Step 7: Heal from Recovered when score drops ──────────────────────────
     if score < FLUSH_THRESHOLD and fsm.state(container) == "Recovered":

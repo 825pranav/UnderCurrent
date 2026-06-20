@@ -22,9 +22,8 @@
 #   python3 run.py
 
 import os
+import subprocess
 import sys
 
-launcher = os.path.join(os.path.dirname(__file__), "integration", "launcher.py")
-sys.argv = [launcher, "--mode", "shadow"] + sys.argv[1:]
-
-exec(open(launcher).read(), {"__name__": "__main__", "__file__": launcher})
+launcher = os.path.join(os.path.dirname(os.path.abspath(__file__)), "integration", "launcher.py")
+sys.exit(subprocess.run([sys.executable, launcher, "--mode", "shadow"] + sys.argv[1:]).returncode)

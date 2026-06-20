@@ -32,7 +32,7 @@ if _shared not in sys.path:
 try:
     from trace_schema import SCHEMA_VERSION
 except ImportError:
-    SCHEMA_VERSION = "1.2.0"
+    SCHEMA_VERSION = "1.3.0"
 
 
 def log_decision(decision: dict, action_result: dict) -> dict:

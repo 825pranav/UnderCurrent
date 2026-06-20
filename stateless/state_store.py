@@ -13,24 +13,24 @@ class StateStore:
         """
         self.window = window_seconds
         # { container_name: [ { "event": ..., "time": ..., "pid": ... }, ... ] }
-        self.events = defaultdict(list)
+        self._events = defaultdict(list)
 
     def record(self, event: dict):
         """Store an event from event_listener.py"""
         container = event.get("container", "unknown")
-        self.events[container].append(event)
+        self._events[container].append(event)
 
     def _prune(self, container: str):
         """Remove events outside the time window"""
         cutoff = time.time() - self.window
-        self.events[container] = [
-            e for e in self.events[container] if e["time"] >= cutoff
+        self._events[container] = [
+            e for e in self._events[container] if e.get("time", 0) >= cutoff
         ]
 
     def get_failures(self, container: str) -> list:
         """Get all recent failures for a container within the window"""
         self._prune(container)
-        return self.events[container]
+        return self._events[container]
 
     def get_failure_count(self, container: str) -> int:
         """Count recent failures for a container"""
@@ -38,7 +38,7 @@ class StateStore:
 
     def get_all_containers(self) -> list:
         """List all containers that have recorded events"""
-        return list(self.events.keys())
+        return list(self._events.keys())
 
     def summary(self) -> dict:
         """Snapshot of all containers and their recent failure counts"""

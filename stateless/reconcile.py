@@ -2,12 +2,13 @@
 # Runs a diagnostic DAG over confidence scores and recommends actions.
 # Supports a shadow (dry-run) controller that logs what it *would* do.
 
+import os
+import sys
 import time
-from confidence import score_all
 
-# --- Tunable thresholds ---
-RESTART_THRESHOLD = 0.80        # score >= this → recommend restart
-RESCHEDULE_THRESHOLD = 0.95     # score >= this → recommend reschedule instead
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "shared"))
+from constants import RESTART_THRESHOLD, RESCHEDULE_THRESHOLD
+from confidence import score_all
 
 # ── DAG fault-pattern names (populate 'dag_pattern' in decision trace) ────────
 _PATTERN = {

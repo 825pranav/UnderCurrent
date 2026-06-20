@@ -58,8 +58,8 @@ def _precompile_all() -> None:
     for action in _ACTION_WAT:
         try:
             _get_module(action)
-        except Exception:
-            pass   # missing WAT file — will surface at call time
+        except Exception as e:
+            print(f"[wasm] WARNING: precompile failed for {action!r}: {e}", flush=True)
 
 _precompile_all()
 

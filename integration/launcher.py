@@ -14,6 +14,7 @@
 
 import argparse
 import os
+import random
 import signal
 import subprocess
 import sys
@@ -179,7 +180,7 @@ tracks:
                     else REPO_ROOT
                 )
                 procs[i] = (name, subprocess.Popen(cmd, cwd=cwd), cmd)
-        time.sleep(3)
+        time.sleep(3 + random.uniform(0, 1))
 
 
 if __name__ == "__main__":

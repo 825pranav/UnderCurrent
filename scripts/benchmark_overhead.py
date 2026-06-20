@@ -130,25 +130,30 @@ def bench_shadow(n: int = 2_000) -> dict:
     single_us: list = []
     dual_us:   list = []
 
-    _devnull = open(os.devnull, "w")
-    for _ in range(n):
-        store = StatefulStateStore(window_seconds=120)
-        _inject_fault_events(store)
+    with open(os.devnull, "w") as _devnull:
+        for _ in range(n):
+            store = StatefulStateStore(window_seconds=120)
+            _inject_fault_events(store)
 
-        fsm_s = ContainerFSM()
-        t0 = time.perf_counter_ns()
-        _old, sys.stdout = sys.stdout, _devnull
-        reconcile(store, fsm_s, shadow=False)
-        sys.stdout = _old
-        single_us.append((time.perf_counter_ns() - t0) / 1_000)
+            fsm_s = ContainerFSM()
+            t0 = time.perf_counter_ns()
+            _old = sys.stdout
+            sys.stdout = _devnull
+            try:
+                reconcile(store, fsm_s, shadow=False)
+            finally:
+                sys.stdout = _old
+            single_us.append((time.perf_counter_ns() - t0) / 1_000)
 
-        fsm_d = ContainerFSM()
-        t0 = time.perf_counter_ns()
-        _old, sys.stdout = sys.stdout, _devnull
-        reconcile_both(store, fsm_d)
-        sys.stdout = _old
-        dual_us.append((time.perf_counter_ns() - t0) / 1_000)
-    _devnull.close()
+            fsm_d = ContainerFSM()
+            t0 = time.perf_counter_ns()
+            _old = sys.stdout
+            sys.stdout = _devnull
+            try:
+                reconcile_both(store, fsm_d)
+            finally:
+                sys.stdout = _old
+            dual_us.append((time.perf_counter_ns() - t0) / 1_000)
 
     s_stats  = _stats(single_us)
     d_stats  = _stats(dual_us)

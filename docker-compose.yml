@@ -1,0 +1,47 @@
+version: "3.9"
+
+# UnderCurrent evaluation containers
+#
+# Starts the three workloads used in the M3 fault-injection campaign.
+# Required for running scripts/run_episodes.py.
+#
+# Usage:
+#   docker compose up -d
+#   python3 scripts/run_episodes.py --container postgres --episodes 30
+#   python3 scripts/run_episodes.py --container redis    --episodes 30
+#   python3 scripts/run_episodes.py --container mysql    --episodes 30
+#   docker compose down
+#
+# CRIU notes:
+#   docker checkpoint create requires experimental mode in /etc/docker/daemon.json:
+#     { "experimental": true }
+#   Restore (docker start --checkpoint) fails on Linux 5.15 due to netns constraints.
+#   The run_episodes.py harness falls back to docker restart automatically.
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: testdb
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:latest
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_DATABASE: testdb
+    ports:
+      - "3306:3306"
+    restart: unless-stopped

@@ -102,36 +102,37 @@ eBPF probes are kernel-global---they fire for every process on the host, not jus
 \centering
 \begin{tikzpicture}[
   font=\scriptsize,
-  box/.style={draw, rounded corners=2pt, minimum width=2.6cm,
-              minimum height=0.42cm, align=center, fill=white},
-  sbox/.style={draw, rounded corners=2pt, minimum width=2.6cm,
-               minimum height=0.42cm, align=center, fill=gray!10},
-  arr/.style={->,>=Stealth, thick},
-  wide/.style={draw, rounded corners=2pt, minimum width=5.7cm,
-               minimum height=0.42cm, align=center, fill=white},
+  box/.style={draw, rounded corners=2pt, minimum width=2.70cm,
+              minimum height=0.48cm, align=center, fill=white},
+  sbox/.style={draw, rounded corners=2pt, minimum width=2.70cm,
+               minimum height=0.48cm, align=center, fill=gray!10},
+  arr/.style={->,>=Stealth, semithick},
+  wide/.style={draw, rounded corners=2pt, minimum width=5.85cm,
+               minimum height=0.48cm, align=center, fill=white},
 ]
-% ---- Kernel layer ----
-\node[wide] (ebpf) at (0, 3.0)
-  {\textbf{Kernel eBPF Probes}~~process\_exit $\cdot$ tcp\_connect $\cdot$ blk\_io $\cdot$ vfs};
+% ---- Kernel layer (two-line node so text fits in column width) ----
+\node[wide, minimum height=0.72cm] (ebpf) at (0, 3.40)
+  {\textbf{Kernel eBPF Probes}\\
+   \texttt{process\_exit} $\cdot$ \texttt{tcp\_connect} $\cdot$ \texttt{blk\_io} $\cdot$ \texttt{vfs}};
 
 % ---- perf buffer ----
-\node[wide] (buf) at (0, 2.4) {perf ring buffer (per track)};
+\node[wide] (buf) at (0, 2.58) {perf ring buffer (per track)};
 \draw[arr] (ebpf) -- (buf);
 
-% ---- Two tracks side by side ----
-\node[sbox] (esS)  at (-1.52, 1.82) {EventListener~+~filter};
-\node[sbox] (esF)  at ( 1.52, 1.82) {EventListener~+~filter};
-\node[sbox] (ssS)  at (-1.52, 1.32) {StateStore (60\,s)};
-\node[sbox] (ssF)  at ( 1.52, 1.32) {StatefulStateStore (60\,s)};
-\node[sbox] (scS)  at (-1.52, 0.82) {Confidence Scorer S};
-\node[sbox] (scF)  at ( 1.52, 0.82) {Confidence Scorer F};
-\node[sbox] (dagS) at (-1.52, 0.32) {Threshold DAG};
-\node[sbox] (dagF) at ( 1.52, 0.32) {FSM-Gated DAG};
-\node[box]  (pol)  at ( 1.52,-0.18) {WASM Policy Layer};
+% ---- Track column headers (outside arrow paths) ----
+\node[font=\tiny\bfseries\itshape] at (-1.55, 2.14) {Type~S~~Stateless};
+\node[font=\tiny\bfseries\itshape] at ( 1.55, 2.14) {Type~F~~Stateful};
 
-% Type labels
-\node[font=\tiny\itshape] at (-1.52,-0.42) {Type S --- Stateless};
-\node[font=\tiny\itshape] at ( 1.52,-0.42) {Type F --- Stateful};
+% ---- Two tracks side by side ----
+\node[sbox] (esS)  at (-1.55, 1.78) {EventListener~+~filter};
+\node[sbox] (esF)  at ( 1.55, 1.78) {EventListener~+~filter};
+\node[sbox] (ssS)  at (-1.55, 1.24) {StateStore (60\,s)};
+\node[sbox] (ssF)  at ( 1.55, 1.24) {StatefulStateStore (60\,s)};
+\node[sbox] (scS)  at (-1.55, 0.70) {Confidence Scorer~S};
+\node[sbox] (scF)  at ( 1.55, 0.70) {Confidence Scorer~F};
+\node[sbox] (dagS) at (-1.55, 0.16) {Threshold DAG};
+\node[sbox] (dagF) at ( 1.55, 0.16) {FSM-Gated DAG};
+\node[box]  (pol)  at ( 1.55,-0.38) {WASM Policy Layer};
 
 % Vertical arrows within each track
 \foreach \a/\b in {buf/esS, esS/ssS, ssS/scS, scS/dagS}
@@ -140,20 +141,22 @@ eBPF probes are kernel-global---they fire for every process on the host, not jus
   \draw[arr] (\a) -- (\b);
 
 % ---- Shared action executor ----
-\node[wide] (exec) at (0,-0.88)
-  {Action Executor~~\textit{real path executed $\cdot$ shadow path suppressed}};
+\node[wide, minimum height=0.64cm] (exec) at (0,-1.08)
+  {Action Executor\\
+   \textit{real path: executed\quad shadow path: suppressed}};
 \draw[arr] (dagS) -- (exec);
 \draw[arr] (pol)  -- (exec);
 
 % ---- Output ----
-\node[wide] (trace) at (0,-1.42)
-  {TraceLogger $\rightarrow$ \texttt{traces.jsonl} $\cdot$ \texttt{divergence\_log.jsonl}};
+\node[wide] (trace) at (0,-1.72)
+  {TraceLogger $\rightarrow$ \texttt{traces.jsonl} \,$\cdot$\, \texttt{divergence\_log.jsonl}};
 \draw[arr] (exec) -- (trace);
 
-% Vertical divider between tracks
-\draw[dashed, gray!50] (0, 2.08) -- (0, -0.55);
+% Vertical divider between the two tracks
+\draw[dashed, gray!60] (0, 2.30) -- (0, -0.68);
 \end{tikzpicture}
-\caption{Dual-track control plane. Type~S (left) and Type~F (right) share the eBPF bus but run independent scorers and decision engines. Type~F adds an FSM-gated DAG and a WASM policy enforcement layer. Every cycle runs on both a real and shadow path; divergences increment metric~M2.}
+\vspace{2pt}
+\caption{Dual-track control plane. Type~S (left) and Type~F (right) share the eBPF event bus but run independent scorers and decision engines. Type~F adds an FSM-gated DAG and a WASM policy enforcement layer between the DAG and the action executor. Every reconcile cycle runs on both a real path and a fresh-FSM shadow path; divergences increment metric~M2.}
 \label{fig:arch}
 \end{figure}
 
@@ -233,8 +236,8 @@ Table~\ref{tab:fsm} and Fig.~\ref{fig:fsm} give the full transition relation. Th
 \caption{TYPE F FSM TRANSITION RELATION.}
 \label{tab:fsm}
 \centering
-\renewcommand{\arraystretch}{1.15}
-\resizebox{\columnwidth}{!}{%
+\renewcommand{\arraystretch}{1.20}
+\resizebox{0.97\columnwidth}{!}{%
 \begin{tabular}{llll}
 \hline
 \textbf{From} & \textbf{Trigger} & \textbf{To} & \textbf{Condition} \\
@@ -256,12 +259,12 @@ Recovered & \texttt{degrade}         & Degraded  & $\rho_F \geq \tau_{\mathrm{fl
 \begin{figure}[!t]
 \centering
 \begin{tikzpicture}[
-  ->, >=Stealth, thick,
+  ->, >=Stealth, semithick,
   st/.style={draw, rounded corners=3pt,
-             minimum width=1.55cm, minimum height=0.48cm,
+             minimum width=1.65cm, minimum height=0.50cm,
              align=center, font=\scriptsize\bfseries, fill=white},
-  lbl/.style={font=\tiny, fill=white, inner sep=0.5pt, sloped},
-  scale=0.92, transform shape,
+  lbl/.style={font=\tiny, fill=white, inner sep=1pt, sloped},
+  scale=0.96, transform shape,
 ]
 % Pentagon layout: radius=2.15, clockwise from 90 deg
 % Angles: Healthy=90, Degraded=18, Audited=306, Repairing=234, Recovered=162
@@ -398,7 +401,8 @@ M_6 = \frac{|\{t \in \mathcal{T}_{\mathrm{real}} : \mathrm{suppressed}(t)\}|}{|\
 \caption{CROSS-CONTROLLER FUNCTIONAL CORRECTNESS SCENARIOS. ALL SCENARIOS PASSED.}
 \label{tab:scenarios}
 \centering
-\renewcommand{\arraystretch}{1.15}
+\renewcommand{\arraystretch}{1.20}
+\setlength{\tabcolsep}{7pt}
 \begin{tabular}{llcll}
 \hline
 \textbf{Track} & \textbf{Scenario} & \textbf{Score} & \textbf{Expected} & \textbf{Observed} \\
@@ -450,22 +454,23 @@ Episode data is committed for \texttt{redis} only ($N = 30$, \texttt{scripts/mtt
 \begin{tikzpicture}
 \begin{axis}[
   ybar,
-  bar width=0.70cm,
+  bar width=0.80cm,
   xlabel={Workload},
   ylabel={Mean MTTR (s)},
   xlabel style={font=\small},
-  ylabel style={font=\small},
-  ymin=10.0, ymax=11.0,
+  ylabel style={font=\small, yshift=2pt},
+  ymin=10.20, ymax=10.62,
   symbolic x coords={redis},
   xtick=data,
   xticklabel style={font=\small},
   yticklabel style={font=\small},
-  ytick={10.0,10.2,10.4,10.6,10.8,11.0},
+  ytick={10.20,10.30,10.40,10.50,10.60},
+  yticklabel={\pgfmathprintnumber[fixed,precision=2]{\tick}},
   ymajorgrids=true, grid style={dashed,gray!35},
-  enlarge x limits=0.6,
-  width=0.75\columnwidth, height=4.8cm,
-  every node near coord/.append style={font=\tiny, /pgf/number format/fixed,
-    /pgf/number format/precision=2},
+  enlarge x limits=0.65,
+  width=0.78\columnwidth, height=5.2cm,
+  every node near coord/.append style={font=\scriptsize,
+    /pgf/number format/fixed, /pgf/number format/precision=2},
   nodes near coords,
   nodes near coords align={above},
 ]
@@ -515,6 +520,7 @@ To answer ``why is the FSM necessary?'', we replayed the $N = 2{,}282$ real stat
 \caption{Decision-policy ablation on $N = 2{,}282$ real Type-F traces (\texttt{stateful/ablation\_results.json}). Input confidence scores are held constant; only the decision mechanism varies. \emph{Unsafe C\&R}: dispatched from a pre-audit FSM state. \emph{Missed C\&R}: legitimate checkpoint opportunity suppressed by a memoryless or binary policy.}
 \label{tab:ablation}
 \centering
+\renewcommand{\arraystretch}{1.15}
 \begin{tabular}{lrcc}
 \hline
 Controller & C\&R dispatched & Unsafe C\&R & Missed C\&R \\
@@ -573,6 +579,7 @@ Two sources of per-cycle overhead are evaluated (Table~\ref{tab:overhead}; \text
 \caption{Runtime overhead (WASM: $N = 10{,}000$ calls post JIT warmup; shadow: $N = 2{,}000$ calls; \texttt{results/overhead\_benchmark.json}). Both costs are negligible relative to the 5\,s reconcile interval.}
 \label{tab:overhead}
 \centering
+\renewcommand{\arraystretch}{1.15}
 \begin{tabular}{lrrrr}
 \hline
 Component & Mean & p95 & p99 & Interval\,\% \\

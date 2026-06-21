@@ -121,7 +121,7 @@ def _real_events(store: StatefulStateStore, stop_event: threading.Event):
     class _FeedingListener(EventListener):
         def __init__(self):
             super().__init__()
-            print("[FILTER ACTIVE] only forwarding: nginx, postgres, redis, mysql", flush=True)
+            print(f"[ebpf-f] filter active — containers: {sorted(_DOCKER_COMM_MAP.values())}", flush=True)
 
         def handle_event(self, cpu, data, size):
             raw  = self.b["f_events"].event(data)

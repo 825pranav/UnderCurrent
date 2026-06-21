@@ -104,7 +104,7 @@ UnderCurrent/
 │   └── wasm/                    WAT policy modules (no_action, flush, checkpoint, escalate)
 │
 ├── shared/                      ← cross-track shared contracts and evaluation
-│   ├── trace_schema.py          field catalogue + schema version (1.2.0)
+│   ├── trace_schema.py          field catalogue + schema version (1.3.0)
 │   ├── metrics.py               all 6 research metrics
 │   ├── eval_runner.py           compute metrics from trace files
 │   ├── verify_safety_gates.py   design claim verification
@@ -151,6 +151,27 @@ python3 run.py
 
 Opens both pipelines + React dashboard at `http://localhost:5050`.  
 For the Streamlit view instead: `python3 streamlit_dash.py`
+
+---
+
+### Reproduce paper evaluation metrics
+
+The Phase 2 evaluation snapshot (stateful + stateless traces, divergence log) is committed in `data/phase2/`. To reproduce all six metrics reported in the paper:
+
+```bash
+# Reproduce paper Phase 2 metrics (M1–M2, M4–M6):
+python3 shared/eval_runner.py --data-dir data/phase2
+
+# Reproduce trial-based accuracy, ablation, and sensitivity (M3 and functional tests):
+python3 evaluation/run_trials.py        # N=30 trials per scenario
+python3 evaluation/sensitivity.py       # threshold sensitivity sweep
+python3 evaluation/ablation.py          # ablation study
+
+# Regenerate paper figures:
+python3 figures/generate_figures.py
+```
+
+Note: `stateful/traces.jsonl` and `stateless/traces.jsonl` are **not committed** (gitignored) — they grow as the system runs. Use `--data-dir data/phase2` to compute metrics from the frozen snapshot used in the paper.
 
 ---
 
@@ -246,7 +267,7 @@ Both tracks write to their own `traces.jsonl`. Base fields are shared; stateful 
 }
 ```
 
-Schema version: `1.2.0` — see `shared/trace_schema.py`
+Schema version: `1.3.0` — see `shared/trace_schema.py`
 
 ---
 

@@ -52,17 +52,6 @@ _ACTION_WAT: dict = {
 _engine  = wasmtime.Engine()
 _modules: dict = {}
 
-# Pre-compile all WAT modules at import time so the first policy_check() call
-# does not include JIT compilation latency in overhead measurements.
-def _precompile_all() -> None:
-    for action in _ACTION_WAT:
-        try:
-            _get_module(action)
-        except Exception as e:
-            print(f"[wasm] WARNING: precompile failed for {action!r}: {e}", flush=True)
-
-_precompile_all()
-
 
 def _get_module(action: str) -> "wasmtime.Module":
     """
@@ -78,6 +67,18 @@ def _get_module(action: str) -> "wasmtime.Module":
             wat_src = f.read()
         _modules[action] = wasmtime.Module(_engine, wat_src)
     return _modules[action]
+
+
+# Pre-compile all WAT modules at import time so the first policy_check() call
+# does not include JIT compilation latency in overhead measurements.
+def _precompile_all() -> None:
+    for action in _ACTION_WAT:
+        try:
+            _get_module(action)
+        except Exception as e:
+            print(f"[wasm] WARNING: precompile failed for {action!r}: {e}", flush=True)
+
+_precompile_all()
 
 
 def policy_check(action: str, fsm_state: str, score: float) -> tuple:

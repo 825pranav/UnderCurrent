@@ -49,7 +49,7 @@ animeshgiri@pesu.pes.edu}
 \maketitle
 
 \begin{abstract}
-We present UnderCurrent, an eBPF-driven self-healing framework that separates stateless and stateful container workloads and uses finite-state-machine (FSM) gating to constrain recovery actions. Kernel-level events are collected through BCC-based eBPF probes and processed by a dual-track control plane: a threshold DAG for stateless workloads (Type~S) and an FSM-gated DAG with a WASM policy enforcement layer for stateful workloads (Type~F). Every decision cycle runs a real and a shadow path; divergences are tracked as an observable metric. A fault-injection campaign across three workloads---\texttt{postgres}, \texttt{redis}, and \texttt{mysql}---with $N = 90$ episodes confirmed the FSM two-cycle recovery guarantee (mean MTTR 10.87--11.54\,s, within-workload $\sigma/\mu < 1\%$, all episodes recovered). An ablation study on 2,282 real Type-F traces shows that removing FSM gating causes 44 premature checkpoint-and-restart dispatches, while a memoryless threshold policy misses all 44 legitimate checkpoint opportunities; the full FSM produces zero unsafe and zero missed dispatches. WASM sandbox overhead is 27\,$\mu$s per call (p99: 50\,$\mu$s) and shadow execution adds 8\,$\mu$s per cycle, both negligible at the 5\,s reconcile interval.
+We present UnderCurrent, an eBPF-driven self-healing framework that separates stateless and stateful container workloads and uses finite-state-machine (FSM) gating to constrain recovery actions. Kernel-level events are collected through BCC-based eBPF probes and processed by a dual-track control plane: a threshold DAG for stateless workloads (Type~S) and an FSM-gated DAG with a WASM policy enforcement layer for stateful workloads (Type~F). Every decision cycle runs a real and a shadow path; divergences are tracked as an observable metric. A fault-injection campaign across three workloads---\texttt{postgres}, \texttt{redis}, and \texttt{mysql}---with $N = 90$ episodes confirmed the FSM two-cycle recovery guarantee (mean MTTR 10.40--11.54\,s, within-workload $\sigma/\mu < 1\%$, all episodes recovered). An ablation study on 2,282 real Type-F traces shows that removing FSM gating causes 44 premature checkpoint-and-restart dispatches, while a memoryless threshold policy misses all 44 legitimate checkpoint opportunities; the full FSM produces zero unsafe and zero missed dispatches. WASM sandbox overhead is 27\,$\mu$s per call (p99: 50\,$\mu$s) and shadow execution adds 8\,$\mu$s per cycle, both negligible at the 5\,s reconcile interval.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -345,7 +345,7 @@ Recovered & \texttt{degrade}         & Degraded  & $\rho_F \geq \tau_{\mathrm{fl
 
 Thresholds: $\tau_{\mathrm{flush}} = 0.50$, $\tau_{\mathrm{repair}} = 0.80$, $\tau_{\mathrm{escalate}} = 0.95$. \texttt{C\&R} abbreviates \texttt{checkpoint\_and\_restart}; \texttt{flush} abbreviates \texttt{flush\_io\_queue}; $q = \mathcal{F}.\mathrm{state}(c)$.
 
-Algorithm~\ref{alg:reconcile} gives the full reconcile procedure. On the real path the FSM is mutated in-place; on the shadow path a fresh copy runs and is then discarded. Between the DAG output and the action executor sits a pluggable policy layer that re-checks FSM sequence constraints as an optional additional enforcement layer~\cite{b4}. Experiments were conducted using the Python policy module; the WebAssembly execution path has not been validated.
+Algorithm~\ref{alg:reconcile} gives the full reconcile procedure. On the real path the FSM is mutated in-place; on the shadow path a fresh copy runs and is then discarded. Between the DAG output and the action executor sits a pluggable policy layer that re-checks FSM sequence constraints as an independent second enforcement point~\cite{b4}. The WASM sandbox is validated separately (§\ref{sec:limitations}); the fault-injection campaign and trace corpus predate wasmtime activation, so M6 counts Python-gate suppressions only (Table~\ref{tab:metrics}, footnote~$^{b}$).
 
 \section{Research Metrics and Evaluation Framework}
 \label{sec:metrics}
@@ -416,11 +416,11 @@ F & Recovery          & 0.59$\rightarrow$drop & \texttt{flush\_io\_queue}     & 
 \section{Evaluation}
 \label{sec:eval}
 
-All results come from real-system eBPF trace data. No simulation was used.
+M1, M2, M4--M6 derive from real-system eBPF trace data. M3 uses a synthetic fault-injection harness (§\ref{sec:m3}).
 
 \subsection{Experimental Setup}
 
-The host was an x86-64 workstation running Ubuntu 22.04 (Linux 5.15), with 8\,GB RAM and a 64\,GB HDD-backed virtual disk. eBPF attachment used BCC and required root. Three Docker containers ran: \texttt{nginx}, \texttt{postgres} (with a persistent volume), and \texttt{redis}. Reconcile interval was 5\,s; sliding event window was 60\,s. Decisions logged to \texttt{traces.jsonl}. No external Docker operations were performed independently of the remediation controller during evaluation; all container interactions were dispatched by the action executor as recorded in the trace logs.
+The host was an x86-64 workstation running Ubuntu 22.04 (Linux 5.15), with 8\,GB RAM and a 64\,GB HDD-backed virtual disk. eBPF attachment used BCC and required root. Three Docker containers ran as eBPF-monitored targets: \texttt{nginx}, \texttt{postgres} (with a persistent volume), and \texttt{redis}. A separate fault-injection experiment added \texttt{mysql} to the workload set for the M3 MTTR campaign (§\ref{sec:m3}). Reconcile interval was 5\,s; sliding event window was 60\,s. Decisions logged to \texttt{traces.jsonl}. No external Docker operations were performed independently of the remediation controller during evaluation; all container interactions were dispatched by the action executor as recorded in the trace logs.
 
 Two phases. Phase~1: a 32-minute nominal baseline with no injected faults. Phase~2: a fault-injection run targeting \texttt{postgres}---VFS write errors via \texttt{COPY ... TO '/dev/full'} and block I/O stress via \texttt{dd conv=fdatasync}. On this virtualised disk, all recorded \texttt{blk\_io\_latency} events stayed below $\Lambda = 10{,}000\,\mu$s, so the fault response in Phase~2 was driven entirely by \texttt{vfs\_write\_error} signals.
 
@@ -429,6 +429,7 @@ Two phases. Phase~1: a 32-minute nominal baseline with no injected faults. Phase
 Type~S recorded 1,187 entries over the 32-minute baseline, 1,039 of them active decisions---all reversible, $M_4 = 1.0000$. This is consistent with normal worker lifecycle behaviour in the monitored containerised workloads. Type~F logged 386 cycles for \texttt{postgres}; the FSM stayed in Healthy the entire time and \texttt{no\_action} was issued on every cycle. The system did not over-trigger on a healthy stateful container---an important baseline to establish before any fault experiment. The 307 captured \texttt{blk\_io\_latency\_normal} events confirm block-I/O telemetry was active with all latencies sub-threshold ($M_1 = M_2 = M_6 = 0.0000$).
 
 \subsection{Phase 2: Fault Injection}
+\label{sec:m3}
 
 After fault injection and a 2-minute cooldown, Type~F had 119 real-mode entries and 44 divergence log entries. Type~S recorded 123 entries. Table~\ref{tab:metrics} gives all six metric values.
 

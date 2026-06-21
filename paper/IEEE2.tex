@@ -424,7 +424,7 @@ The evaluation addresses four questions. (1)~Does FSM history change decisions i
 
 \subsection{Experimental Setup}
 
-The host was an x86-64 workstation running Ubuntu~22.04 (Linux~5.15), with 8\,GB RAM and a 64\,GB HDD-backed virtual disk. eBPF attachment used BCC and required root. Three Docker containers ran as eBPF-monitored targets: \texttt{nginx}, \texttt{postgres} (with a persistent volume), and \texttt{redis}. A fourth container \texttt{mysql} was intended for use in the fault-injection harness for MTTR measurement; episode data for \texttt{mysql} was not committed (see §\ref{sec:limitations}). Reconcile interval was 5\,s; sliding event window was 60\,s. Decisions logged to \texttt{traces.jsonl} (schema version~1.3.0). No external Docker operations were performed independently of the remediation controller during evaluation; all container interactions were dispatched by the action executor as recorded in the trace logs.
+The host was an x86-64 workstation running Ubuntu~22.04 (Linux~5.15), with 8\,GB RAM and a 64\,GB HDD-backed virtual disk. eBPF attachment used BCC and required root. Four Docker containers ran as monitored targets: \texttt{nginx} (Type~S track), \texttt{postgres} (with a persistent volume), \texttt{redis}, and \texttt{mysql} (Type~F track). All four appear in the committed trace corpus. Episode data for \texttt{postgres} and \texttt{mysql} MTTR runs was not committed (see §\ref{sec:limitations}). Reconcile interval was 5\,s; sliding event window was 60\,s. Decisions logged to \texttt{traces.jsonl} (schema version~1.3.0). No external Docker operations were performed independently of the remediation controller during evaluation; all container interactions were dispatched by the action executor as recorded in the trace logs.
 
 The committed evaluation snapshot (\texttt{data/phase2/}) contains 9,132 total traces: 4,564 stateful (2,282 real, 2,282 shadow) and 4,568 stateless (2,284 real, 2,284 shadow). Of 2,282 real stateful cycles, 2,187 (95.8\,\%) produced \texttt{no\_action} and 95 (4.2\,\%) were active interventions (51 \texttt{flush\_io\_queue}, 44 \texttt{checkpoint\_and\_restart}). The high \texttt{no\_action} fraction confirms the controller does not fire spuriously: during cycles where the score is below $\tau_{\mathrm{flush}} = 0.50$, both the real FSM and the shadow FSM agree, and M2 is unaffected. The 44 divergences arise exclusively in cycles where the real FSM, having accumulated Audited state, approves \texttt{checkpoint\_and\_restart} while the fresh-each-cycle shadow FSM can only reach Degraded and defers to \texttt{flush\_io\_queue}.
 
@@ -524,9 +524,7 @@ No-FSM (always-restart) & 88\;(3.86\%) & 44 & 0 \\
 Threshold-only (shadow) & 0\;\;\;(0\%) & 0 & 44 \\
 No-confidence (binary)  & 0\;\;\;(0\%) & 0 & 44$^{c}$ \\
 \hline
-\multicolumn{4}{l}{\footnotesize $^{c}$An additional 7 disagreements exist: cycles where the full FSM produces \texttt{no\_action}} \\
-\multicolumn{4}{l}{\footnotesize but no-confidence dispatches \texttt{flush\_io\_queue} (binary score 0.75 $\geq\tau_{\mathrm{flush}}=0.50$).} \\
-\multicolumn{4}{l}{\footnotesize Total no-confidence disagreements vs.\ full FSM: 51 (\texttt{stateful/ablation\_results.json}).} \\
+\multicolumn{4}{p{0.88\columnwidth}}{\footnotesize $^{c}$7 extra \texttt{flush} dispatches (binary score $0.75\geq\tau_{\mathrm{flush}}$) also disagree with baseline \texttt{no\_action}; total disagreements\,=\,51 (\texttt{ablation\_results.json}).} \\
 \end{tabular}
 \end{table}
 

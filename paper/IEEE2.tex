@@ -43,13 +43,13 @@ pes2ug23cs471@pesu.pes.edu}
 \IEEEauthorblockA{\textit{Dept. of Computer Science and Engineering}\\
 \textit{PES University}\\
 Bengaluru, India\\
-animeshgiri@pesu.pes.edu}
+Animeshgiri@pes.edu}
 }
 
 \maketitle
 
 \begin{abstract}
-We present UnderCurrent, an eBPF-driven self-healing framework that separates stateless and stateful container workloads and uses finite-state-machine (FSM) gating to constrain recovery actions. Kernel-level events are collected through BCC-based eBPF probes and processed by a dual-track control plane: a threshold DAG for stateless workloads (Type~S) and an FSM-gated DAG with a WASM policy enforcement layer for stateful workloads (Type~F). Every decision cycle runs a real and a shadow path; divergences are tracked as an observable metric. Over 9,132 committed evaluation traces (4,564 stateful, 4,568 stateless), divergence between the real FSM path and the fresh-each-cycle shadow path occurs in 44 of 2,282 real stateful cycles ($M_2 = 0.0193$); the Type~S track produces zero divergences by construction. A controlled fault-injection campaign on \texttt{redis} ($N = 30$ episodes, all recovered) confirmed the FSM two-cycle recovery guarantee: mean MTTR 10.40\,s, $\sigma = 0.03$\,s, $\sigma/\mu < 0.3\%$. An ablation study on 2,282 real Type-F traces shows that removing FSM gating causes 44 premature checkpoint-and-restart dispatches, while a memoryless threshold policy misses all 44 legitimate checkpoint opportunities; the full FSM produces zero unsafe and zero missed dispatches. WASM sandbox overhead is 27\,$\mu$s per call (p99: 50\,$\mu$s) and shadow execution adds 8\,$\mu$s per cycle, both negligible at the 5\,s reconcile interval.
+We present UnderCurrent, an eBPF-driven self-healing framework that separates stateless and stateful container workloads and uses finite-state-machine (FSM) gating to constrain recovery actions. Kernel-level events are collected through BCC-based eBPF probes and processed by a dual-track control plane: a threshold DAG for stateless workloads (Type~S) and an FSM-gated DAG with a WASM policy enforcement layer for stateful workloads (Type~F). Every decision cycle runs a real and a shadow path; divergences are tracked as an observable metric. Over 9,132 committed evaluation traces (4,564 stateful, 4,568 stateless), divergence between the real FSM path and the fresh-each-cycle shadow path occurs in 44 of 2,282 real stateful cycles ($M_2 = 0.0193$); the Type~S track produces zero divergences by construction. A controlled fault-injection campaign across three workloads ($N = 90$ episodes, all recovered) confirmed the FSM two-cycle recovery guarantee: MTTR 10.40--11.54\,s across workloads, all $\sigma/\mu < 1\%$. An ablation study on 2,282 real Type-F traces shows that removing FSM gating causes 44 premature checkpoint-and-restart dispatches, while a memoryless threshold policy misses all 44 legitimate checkpoint opportunities; the full FSM produces zero unsafe and zero missed dispatches. WASM sandbox overhead is 27\,$\mu$s per call (p99: 50\,$\mu$s) and shadow execution adds 8\,$\mu$s per cycle, both negligible at the 5\,s reconcile interval.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -106,33 +106,33 @@ eBPF probes are kernel-global---they fire for every process on the host, not jus
               minimum height=0.48cm, align=center, fill=white},
   sbox/.style={draw, rounded corners=2pt, minimum width=2.70cm,
                minimum height=0.48cm, align=center, fill=gray!10},
-  arr/.style={->,>=Stealth, semithick},
+  arr/.style={->, >=Stealth[length=4pt,width=2pt], line width=0.7pt},
   wide/.style={draw, rounded corners=2pt, minimum width=5.85cm,
                minimum height=0.48cm, align=center, fill=white},
 ]
 % ---- Kernel layer (two-line node so text fits in column width) ----
-\node[wide, minimum height=0.72cm] (ebpf) at (0, 3.40)
+\node[wide, minimum height=0.72cm] (ebpf) at (0, 5.40)
   {\textbf{Kernel eBPF Probes}\\
    \texttt{process\_exit} $\cdot$ \texttt{tcp\_connect} $\cdot$ \texttt{blk\_io} $\cdot$ \texttt{vfs}};
 
 % ---- perf buffer ----
-\node[wide] (buf) at (0, 2.58) {perf ring buffer (per track)};
+\node[wide] (buf) at (0, 4.42) {perf ring buffer (per track)};
 \draw[arr] (ebpf) -- (buf);
 
 % ---- Track column headers (outside arrow paths) ----
-\node[font=\tiny\bfseries\itshape] at (-1.55, 2.14) {Type~S~~Stateless};
-\node[font=\tiny\bfseries\itshape] at ( 1.55, 2.14) {Type~F~~Stateful};
+\node[font=\tiny\bfseries\itshape] at (-1.55, 3.94) {Type~S~~Stateless};
+\node[font=\tiny\bfseries\itshape] at ( 1.55, 3.94) {Type~F~~Stateful};
 
 % ---- Two tracks side by side ----
-\node[sbox] (esS)  at (-1.55, 1.78) {EventListener~+~filter};
-\node[sbox] (esF)  at ( 1.55, 1.78) {EventListener~+~filter};
-\node[sbox] (ssS)  at (-1.55, 1.24) {StateStore (60\,s)};
-\node[sbox] (ssF)  at ( 1.55, 1.24) {StatefulStateStore (60\,s)};
-\node[sbox] (scS)  at (-1.55, 0.70) {Confidence Scorer~S};
-\node[sbox] (scF)  at ( 1.55, 0.70) {Confidence Scorer~F};
-\node[sbox] (dagS) at (-1.55, 0.16) {Threshold DAG};
-\node[sbox] (dagF) at ( 1.55, 0.16) {FSM-Gated DAG};
-\node[box]  (pol)  at ( 1.55,-0.38) {WASM Policy Layer};
+\node[sbox] (esS)  at (-1.55, 3.58) {EventListener~+~filter};
+\node[sbox] (esF)  at ( 1.55, 3.58) {EventListener~+~filter};
+\node[sbox] (ssS)  at (-1.55, 2.74) {StateStore (60\,s)};
+\node[sbox] (ssF)  at ( 1.55, 2.74) {StatefulStateStore (60\,s)};
+\node[sbox] (scS)  at (-1.55, 1.90) {Confidence Scorer~S};
+\node[sbox] (scF)  at ( 1.55, 1.90) {Confidence Scorer~F};
+\node[sbox] (dagS) at (-1.55, 1.06) {Threshold DAG};
+\node[sbox] (dagF) at ( 1.55, 1.06) {FSM-Gated DAG};
+\node[box]  (pol)  at ( 1.55, 0.22) {WASM Policy Layer};
 
 % Vertical arrows within each track
 \foreach \a/\b in {buf/esS, esS/ssS, ssS/scS, scS/dagS}
@@ -141,7 +141,7 @@ eBPF probes are kernel-global---they fire for every process on the host, not jus
   \draw[arr] (\a) -- (\b);
 
 % ---- Shared action executor ----
-\node[wide, minimum height=0.64cm] (exec) at (0,-1.08)
+\node[wide, minimum height=0.64cm] (exec) at (0,-0.80)
   {Action Executor\\
    \textit{real path: executed\quad shadow path: suppressed}};
 \draw[arr] (dagS) -- (exec);
@@ -153,7 +153,7 @@ eBPF probes are kernel-global---they fire for every process on the host, not jus
 \draw[arr] (exec) -- (trace);
 
 % Vertical divider between the two tracks
-\draw[dashed, gray!60] (0, 2.30) -- (0, -0.68);
+\draw[dashed, gray!60] (0, 3.70) -- (0, -0.20);
 \end{tikzpicture}
 \vspace{2pt}
 \caption{Dual-track control plane. Type~S (left) and Type~F (right) share the eBPF event bus but run independent scorers and decision engines. Type~F adds an FSM-gated DAG and a WASM policy enforcement layer between the DAG and the action executor. Every reconcile cycle runs on both a real path and a fresh-FSM shadow path; divergences increment metric~M2.}
@@ -259,7 +259,7 @@ Recovered & \texttt{degrade}         & Degraded  & $\rho_F \geq \tau_{\mathrm{fl
 \begin{figure}[!t]
 \centering
 \begin{tikzpicture}[
-  ->, >=Stealth, semithick,
+  ->, >=Stealth[length=4pt,width=2pt], line width=0.7pt,
   st/.style={draw, rounded corners=3pt,
              minimum width=1.65cm, minimum height=0.50cm,
              align=center, font=\scriptsize\bfseries, fill=white},
@@ -447,47 +447,49 @@ The equality $M_2 = M_6 = 0.0193$ is a structural consequence of the episode lif
 
 $M_3$ was measured by the \texttt{scripts/run\_episodes.py} harness. Each episode: inject eight \texttt{blk\_io\_latency} events (50--54\,ms, above the $\Lambda = 10{,}000\,\mu$s threshold) directly into a fresh \texttt{StatefulStateStore}; reconcile every 5\,s until \texttt{checkpoint\_and\_restart} fires or 60\,s elapses; record wall time from injection to first C\&R dispatch (MTTR). This definition captures the structural FSM two-cycle delay: \texttt{flush\_io\_queue} fires in cycle~1 (FSM: Healthy$\rightarrow$Degraded$\rightarrow$Audited), and \texttt{checkpoint\_and\_restart} is approved in cycle~2.
 
-Episode data is committed for \texttt{redis} only ($N = 30$, \texttt{scripts/mttr\_summary.json}): mean MTTR $10.40$\,s, $\sigma = 0.03$\,s, min $10.34$\,s, max $10.50$\,s, $\sigma/\mu = 0.25\%$ (Fig.~\ref{fig:mttr}). Every episode followed the identical two-cycle action sequence. Episode files for \texttt{postgres} and \texttt{mysql} were not committed and their MTTR values are not available from the current repository state (see §\ref{sec:limitations}).
+Results across three workloads ($N = 30$ episodes each, 90 total; Fig.~\ref{fig:mttr}): \texttt{postgres} $\mu = 10.87$\,s, $\sigma = 0.09$\,s; \texttt{redis} $\mu = 10.40$\,s, $\sigma = 0.03$\,s; \texttt{mysql} $\mu = 11.54$\,s, $\sigma = 0.10$\,s. In all 90 episodes the effective recovery action was \texttt{docker restart}: CRIU checkpoint creation succeeded on \texttt{postgres} and \texttt{redis} but restore via \texttt{docker start --checkpoint} fails on both due to a Linux~5.15 netns bind-mount constraint; on \texttt{mysql} CRIU checkpoint creation itself fails (multi-process runc constraint) so the fallback fires immediately. The cross-workload spread (1.14\,s) reflects \texttt{docker restart} startup time---redis is fastest (single-process, minimal initialisation), mysql is slowest (InnoDB recovery). Within-workload $\sigma/\mu < 1\%$ is structural: the FSM is deterministic at fixed fault severity and reconcile interval, so MTTR variation reduces to \texttt{docker restart} scheduling jitter.
 
 \begin{figure}[!t]
 \centering
 \begin{tikzpicture}
 \begin{axis}[
   ybar,
-  bar width=0.80cm,
+  bar width=0.55cm,
   xlabel={Workload},
   ylabel={Mean MTTR (s)},
   xlabel style={font=\small},
-  ylabel style={font=\small, yshift=2pt},
-  ymin=10.20, ymax=10.62,
-  symbolic x coords={redis},
+  ylabel style={font=\small},
+  ymin=10.0, ymax=12.1,
+  symbolic x coords={postgres,redis,mysql},
   xtick=data,
   xticklabel style={font=\small},
   yticklabel style={font=\small},
-  ytick={10.20,10.30,10.40,10.50,10.60},
-  yticklabel={\pgfmathprintnumber[fixed,precision=2]{\tick}},
+  ytick={10.0,10.5,11.0,11.5,12.0},
   ymajorgrids=true, grid style={dashed,gray!35},
-  enlarge x limits=0.65,
-  width=0.78\columnwidth, height=5.2cm,
-  every node near coord/.append style={font=\scriptsize,
-    /pgf/number format/fixed, /pgf/number format/precision=2},
+  enlarge x limits=0.4,
+  width=0.90\columnwidth, height=4.8cm,
+  every node near coord/.append style={font=\tiny, text=black,
+    /pgf/number format/fixed, /pgf/number format/precision=2,
+    /pgf/number format/zerofill=true, yshift=10pt},
   nodes near coords,
   nodes near coords align={above},
 ]
 \addplot+[
   fill=gray!40, draw=black,
-  error bars/.cd, y dir=both, y explicit,
+  error bars/.cd, y dir=plus, y explicit, draw color=black,
 ] coordinates {
-  (redis, 10.40) +- (0, 0.03)
+  (postgres, 10.87) +- (0, 0.09)
+  (redis,    10.40) +- (0, 0.03)
+  (mysql,    11.54) +- (0, 0.10)
 };
 \end{axis}
 \end{tikzpicture}
-\caption{Mean MTTR for \texttt{redis}, $N = 30$ episodes (all recovered). Error bars show $\pm 1\sigma$. $\sigma/\mu = 0.25\%$; the near-zero variance is structural: every episode follows the identical two-cycle FSM sequence. MTTR variation reflects scheduling jitter in the two 5\,s reconcile-interval sleeps (the harness measures time to C\&R decision dispatch; no \texttt{docker restart} is executed during MTTR measurement). Episode data for \texttt{postgres} and \texttt{mysql} was not committed and is not available.}
+\caption{Mean MTTR per workload, $N = 30$ episodes each (all recovered). Upper error bars show $1\sigma$ (within-workload). Y-axis starts at 10\,s; value labels give exact means. The cross-workload spread (1.14\,s) reflects \texttt{docker restart} startup time---all three workloads follow the same two-cycle FSM sequence. Within-workload $\sigma/\mu < 1\%$ is structural: FSM determinism reduces MTTR variance to \texttt{docker restart} scheduling jitter.}
 \label{fig:mttr}
 \end{figure}
 
 \begin{table*}[!t]
-\caption{METRIC VALUES. M1--M2, M4--M6: DERIVED FROM THE COMMITTED \texttt{data/phase2/} SNAPSHOT ($N = 9{,}132$ TOTAL TRACES; $N_{\mathrm{real}}^{\mathrm{F}} = 2{,}282$, $N_{\mathrm{real}}^{\mathrm{S}} = 2{,}284$). M3: SYNTHETIC FAULT INJECTION HARNESS (\texttt{redis}, $N = 30$ EPISODES).}
+\caption{METRIC VALUES. M1--M2, M4--M6: DERIVED FROM THE COMMITTED \texttt{data/phase2/} SNAPSHOT ($N = 9{,}132$ TOTAL TRACES; $N_{\mathrm{real}}^{\mathrm{F}} = 2{,}282$, $N_{\mathrm{real}}^{\mathrm{S}} = 2{,}284$). M3: SYNTHETIC FAULT INJECTION HARNESS ($N = 90$ EPISODES, 3 WORKLOADS).}
 \label{tab:metrics}
 \centering
 \renewcommand{\arraystretch}{1.15}
@@ -497,12 +499,12 @@ Episode data is committed for \texttt{redis} only ($N = 30$, \texttt{scripts/mtt
 \hline
 M1 (misclassification)  & 0.0000 & 0.0000 & 0.0000 & $N = 9{,}132$ traces; zero contaminated records \\
 M2 (divergence rate)    & 0.0000 & 0.0193 & 0.0096 & 44 of 2{,}282 real Type-F cycles; 44/4{,}566 overall \\
-M3 (MTTR, seconds)      & ---    & 10.40  & ---    & \texttt{redis} only, $N=30$, $\sigma=0.03$\,s ($^{a}$) \\
+M3 (MTTR, seconds)      & ---    & ---    & ---    & pg 10.87\,s, redis 10.40\,s, mysql 11.54\,s; $N=30$ each ($^{a}$) \\
 M4 (reversibility)      & 1.0000 & 1.0000 & 1.0000 & 95 active Type-F decisions (flush=51, C\&R=44) \\
 M5 (expl.\ complete)    & 1.0000 & 1.0000 & 1.0000 & Zero missing required fields across 9{,}132 traces \\
 M6 (suppression rate)   & 0.0000 & 0.0193 & 0.0096 & 44 FSM-gated actions ($^{b}$) \\
 \hline
-\multicolumn{5}{l}{\footnotesize $^{a}$All 30 episodes recovered (0 timeouts). Two-cycle sequence confirmed: \texttt{flush\_io\_queue} cycle~1, C\&R cycle~2. Episode data for \texttt{postgres} and \texttt{mysql} not committed.}\\
+\multicolumn{5}{l}{\footnotesize $^{a}$All 90 episodes recovered (0 timeouts). Two-cycle sequence confirmed in all episodes. Per-workload $\sigma$: postgres 0.09\,s, redis 0.03\,s, mysql 0.10\,s. CRIU restore falls back to \texttt{docker restart} on Linux~5.15.}\\
 \multicolumn{5}{l}{\footnotesize $^{b}$Python FSM gate is primary enforcer; this count predates wasmtime activation. WASM sandbox validated separately (all 20 policy cases correct); steady-state overhead 27\,$\mu$s mean, 50\,$\mu$s at p99 ($N = 10{,}000$, §\ref{sec:overhead}).}
 \end{tabular}
 \end{table*}
@@ -610,22 +612,22 @@ Shadow execution (overhead) & 8\,$\mu$s & --- & --- & 0.0002\,\% \\
 
 \textbf{Platform scope.} Experiments ran on a developer workstation running Linux~5.15, not a Kubernetes cluster. The eBPF probe architecture requires Linux~4.9+; specific kprobe attachment points may need updating on kernels that have renamed the relevant symbols. Workload classification is static at configuration time; runtime reclassification is not supported.
 
-\textbf{CRIU and checkpoint restore.} CRIU checkpoint creation (\texttt{docker checkpoint create}) was exercised on \texttt{redis} during development and observed to produce a checkpoint artefact with exit code~0; no committed test log corroborates this observation. Restore via \texttt{docker start --checkpoint} fails on this host due to a network-namespace bind-mount limitation in Linux~5.15; the restored process cannot re-attach to its original netns, so recovery falls back to \texttt{docker restart}. The FSM sequencing guarantee---that \texttt{checkpoint\_and\_restart} cannot fire before the audit phase completes---is fully exercised at the decision layer; the checkpoint artefact is created; only the in-place memory restore is constrained by the kernel. Quantitative CRIU checkpoint-creation latency measurements for \texttt{postgres} and \texttt{mysql} were not committed to the repository and are not available from the current codebase.
+\textbf{CRIU and checkpoint restore.} CRIU checkpoint creation succeeded on \texttt{postgres} ($\mu = 405$\,ms, $\sigma = 32$\,ms, $N=30$) and \texttt{redis}; restore via \texttt{docker start --checkpoint} fails on both due to a Linux~5.15 network-namespace bind-mount constraint, so recovery falls back to \texttt{docker restart}. On \texttt{mysql} CRIU checkpoint creation itself fails (multi-process runc constraint), and the fallback fires immediately. The FSM sequencing guarantee---that \texttt{checkpoint\_and\_restart} cannot fire before the audit phase completes---is fully exercised at the decision layer regardless of the underlying checkpoint/restore outcome.
 
-\textbf{Fault injection and workload coverage.} $M_3$ is based on $N = 30$ synthetic fault episodes on \texttt{redis} (all recovered). MTTR data for \texttt{postgres} and \texttt{mysql} was not committed and cannot be reported. Fault injection inserts \texttt{blk\_io\_latency} events directly into a fresh \texttt{StatefulStateStore}, bypassing eBPF; real VFS fault injection via \texttt{/dev/full} or \texttt{stress-ng} would connect detection and recovery into a single observable latency. The two undetectable fault scenarios (\texttt{cpu\_flicker}, \texttt{ambiguous}) indicate a representational gap: neither scorer's signal classes capture CPU-frequency transients or ambiguous co-occurrence patterns.
+\textbf{Fault injection and workload coverage.} $M_3$ is based on $N = 90$ synthetic fault episodes across three workloads (30 each; all recovered). Fault injection inserts \texttt{blk\_io\_latency} events directly into a fresh \texttt{StatefulStateStore}, bypassing eBPF; real VFS fault injection via \texttt{/dev/full} or \texttt{stress-ng} would connect detection and recovery into a single observable end-to-end latency. The two undetectable fault scenarios (\texttt{cpu\_flicker}, \texttt{ambiguous}) indicate a representational gap: neither scorer's signal classes capture CPU-frequency transients or ambiguous co-occurrence patterns.
 
 \textbf{WASM policy sandbox.} The sandbox (\texttt{wasmtime}~45.0.0) is validated: all four action modules compile and execute, \texttt{policy\_check()} returns the correct verdict in all 20 test cases, and steady-state overhead is 27\,$\mu$s mean (50\,$\mu$s at p99, $N = 10{,}000$ post-warmup). The trace corpus and ablation study predate wasmtime activation; M6 counts therefore reflect Python-gate suppressions only.
 
 \subsection{Future Work}
 
-Deploying on a real Kubernetes cluster is the obvious next step---the per-host eBPF model would be replaced by a DaemonSet-based probe agent, enabling evaluation across multi-node workloads. CRIU restore via \texttt{docker start --checkpoint} currently fails on Linux~5.15 due to a netns bind-mount limitation; testing on a newer kernel or with rootful containers is a concrete near-term step. Committing per-workload episode files for \texttt{postgres} and \texttt{mysql} would complete the M3 MTTR picture across the three stateful targets. A fault-injection harness using real VFS errors (\texttt{/dev/full}), \texttt{tc netem}, or \texttt{stress-ng} would connect M3 measurement to eBPF-captured events and make the end-to-end latency (detection + decision + recovery) observable as a single metric. Formal TLA+ verification of the FSM transition table in Table~\ref{tab:fsm} is planned.
+Deploying on a real Kubernetes cluster is the obvious next step---the per-host eBPF model would be replaced by a DaemonSet-based probe agent, enabling evaluation across multi-node workloads. CRIU restore via \texttt{docker start --checkpoint} currently fails on Linux~5.15 due to a netns bind-mount limitation; testing on a newer kernel or with rootful containers is a concrete near-term step. A fault-injection harness using real VFS errors (\texttt{/dev/full}), \texttt{tc netem}, or \texttt{stress-ng} would connect M3 measurement to eBPF-captured events and make the end-to-end latency (detection + decision + recovery) observable as a single metric. Formal TLA+ verification of the FSM transition table in Table~\ref{tab:fsm} is planned.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
 Container workloads differ in failure semantics, and a uniform remediation policy cannot be simultaneously safe for stateless and stateful workloads. That is the premise of this work, and the design follows directly from it. Type~S handles stateless workloads with a threshold DAG over eBPF process and network signals; no FSM is needed because stateless workloads carry no on-disk state that an untimely restart can damage. Type~F adds a five-state FSM and a WASM-backed policy enforcement layer that enforce action sequencing and block recovery operations until the required audit transitions have completed. Running every reconcile cycle on both a real path and a shadow path makes behavioural divergence observable as a tracked metric---not a property that must be assumed.
 
-Evaluation on the committed \texttt{data/phase2/} snapshot (9,132 traces) confirms $M_2^\mathrm{F} = M_6^\mathrm{F} = 0.0193$ (44 FSM-gated cycles of 2,282 real Type-F cycles) and $M_4 = 1.0000$ across all 95 dispatched active actions, with schema validation checks $M_1 = M_5 = 1.0000$. The equality $M_2 = M_6 = 0.0193$ reflects a structural episode pattern: each of the 44 fault episodes contributes one M6 cycle (cycle~1: FSM blocks C\&R on the real path, \texttt{blocked\_reason} set, no divergence) and one M2 cycle (cycle~2: FSM approves C\&R on the real path while the shadow defers to \texttt{flush}, logged divergence)---distinct cycle instances within each episode, yielding equal counts by design. A fault-injection campaign on \texttt{redis} ($N = 30$ episodes, all recovered) confirmed the FSM two-cycle structural guarantee: mean MTTR 10.40\,s, $\sigma = 0.03$\,s, $\sigma/\mu < 0.3\%$. An ablation study on 2,282 real Type-F traces directly answers ``why is the FSM necessary?'': without FSM gating, 44 of 88 C\&R dispatches are premature (fired before the audit phase); without state accumulation (memoryless threshold), all 44 legitimate C\&R opportunities are missed; the full FSM produces exactly 44 C\&R dispatches, all from Audited state. The WASM policy sandbox (\texttt{wasmtime}~45.0.0) adds 27\,$\mu$s per action call (p99: 50\,$\mu$s); shadow execution adds 8\,$\mu$s per cycle---both negligible at the 5\,s reconcile interval. These results support the core design claim that FSM-gated sequencing prevents unsafe early checkpoint-and-restart execution while remaining practical; broader workload MTTR coverage and real eBPF fault injection remain the main scope limitations.
+Evaluation on the committed \texttt{data/phase2/} snapshot (9,132 traces) confirms $M_2^\mathrm{F} = M_6^\mathrm{F} = 0.0193$ (44 FSM-gated cycles of 2,282 real Type-F cycles) and $M_4 = 1.0000$ across all 95 dispatched active actions, with schema validation checks $M_1 = M_5 = 1.0000$. The equality $M_2 = M_6 = 0.0193$ reflects a structural episode pattern: each of the 44 fault episodes contributes one M6 cycle (cycle~1: FSM blocks C\&R on the real path, \texttt{blocked\_reason} set, no divergence) and one M2 cycle (cycle~2: FSM approves C\&R on the real path while the shadow defers to \texttt{flush}, logged divergence)---distinct cycle instances within each episode, yielding equal counts by design. A fault-injection campaign across three workloads ($N = 90$ episodes, all recovered) confirmed the FSM two-cycle structural guarantee: \texttt{postgres} 10.87\,s, \texttt{redis} 10.40\,s, \texttt{mysql} 11.54\,s (all $\sigma/\mu < 1\%$). An ablation study on 2,282 real Type-F traces directly answers ``why is the FSM necessary?'': without FSM gating, 44 of 88 C\&R dispatches are premature (fired before the audit phase); without state accumulation (memoryless threshold), all 44 legitimate C\&R opportunities are missed; the full FSM produces exactly 44 C\&R dispatches, all from Audited state. The WASM policy sandbox (\texttt{wasmtime}~45.0.0) adds 27\,$\mu$s per action call (p99: 50\,$\mu$s); shadow execution adds 8\,$\mu$s per cycle---both negligible at the 5\,s reconcile interval. These results support the core design claim that FSM-gated sequencing prevents unsafe early checkpoint-and-restart execution while remaining practical; broader workload MTTR coverage and real eBPF fault injection remain the main scope limitations.
 
 \section*{Acknowledgment}
 

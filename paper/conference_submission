@@ -12,7 +12,7 @@
 \usepackage{tikz}
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
-\usetikzlibrary{arrows.meta,bending}
+\usetikzlibrary{arrows.meta,bending,positioning}
 
 % Override IEEEtran's default \normalsize (10pt) affiliation font to \small (9pt).
 % At 10pt, "Dept. of Computer Science and Engineering" is ~65mm wide per block;
@@ -49,7 +49,7 @@ animeshgiri@pes.edu}
 \maketitle
 
 \begin{abstract}
-Containerized workloads mix stateful databases and stateless services with fundamentally different failure semantics, yet most remediation frameworks apply the same recovery policy to both. Such uniformity overlooks the distinct safety requirements of stateful and stateless workloads. We present a dual-track control plane that separates stateless and stateful workloads into independent eBPF-driven remediation pipelines. Stateless workloads are managed using a confidence-based decision DAG, whereas stateful workloads incorporate a finite-state machine (FSM), shadow execution, and a WebAssembly (WASM) policy layer to enforce safe action sequencing before irreversible recovery operations. We evaluated the framework using 9,132 execution traces and 90 controlled fault-injection experiments across PostgreSQL, Redis, MySQL, and Nginx container workloads. The stateful divergence rate of 1.93\% confirms that accumulated FSM state materially changes dispatch outcomes compared to a memoryless baseline. Mean time to checkpoint dispatch ranged from 10.40 to 11.54\,s; WASM policy evaluation added 27\,$\mu$s and shadow execution 8\,$\mu$s per cycle---both negligible within the 5\,s budget. Workload-aware control plane separation is both feasible and measurably necessary for safe, explainable autonomous remediation in heterogeneous container environments.
+Containerized workloads mix stateful databases and stateless services with fundamentally different failure semantics, yet most remediation frameworks apply the same recovery policy to both. Such uniformity overlooks the distinct safety requirements of stateful and stateless workloads. We present a dual-track control plane that separates stateless and stateful workloads into independent eBPF-driven remediation pipelines. Stateless workloads are managed using a confidence-based decision DAG, whereas stateful workloads incorporate a finite-state machine (FSM), shadow execution, and a WebAssembly (WASM) policy layer to enforce safe action sequencing before irreversible recovery operations. We evaluated the framework using 9,132 execution traces and 90 controlled fault-injection experiments across PostgreSQL, Redis, MySQL, and Nginx container workloads. The stateful divergence rate of 1.93\% confirms that accumulated FSM state materially changes dispatch outcomes compared to a memoryless baseline. Mean time to checkpoint dispatch ranged from 10.40 to 11.54\,s; WASM policy evaluation added 27\,$\mu$s and shadow execution 8\,$\mu$s per cycle---both negligible within the 5\,s budget. Workload-aware control plane separation is both feasible and measurably necessary for safe autonomous remediation where stateful and stateless workloads coexist.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -516,9 +516,9 @@ Two overhead sources are benchmarked (\texttt{results/overhead\_benchmark.json})
 \subsection{Limitations}
 \label{sec:limitations}
 
-\textbf{Platform scope.} All experiments ran on a single workstation (Linux~5.15, not a Kubernetes cluster); kprobe attachment points may need updating on newer kernels. Workload classification is static at startup. eBPF probes are kernel-global; attribution relies on the \texttt{comm} field, which He et al.~\cite{b16} show is vulnerable to cross-container attacks in shared-kernel multi-tenant deployments.
+\textbf{Platform scope.} All experiments ran on a single workstation (Linux~5.15, not a Kubernetes cluster); kprobe attachment points---particularly \texttt{blk\_account\_io\_start} and \texttt{blk\_account\_io\_done}, which may be affected by 6.x block-layer refactors---may require updating on newer kernels; \texttt{vfs\_write}, \texttt{vfs\_read}, and the \texttt{sched\_process\_exit} tracepoint remain stable through 6.8. Workload classification is static at startup. eBPF probes are kernel-global; attribution relies on the \texttt{comm} field, which He et al.~\cite{b16} show is vulnerable to cross-container attacks in shared-kernel multi-tenant deployments.
 
-\textbf{CRIU.} Checkpoint creation succeeded on \texttt{postgres} ($\mu = 405$\,ms, $N=30$) and \texttt{redis}; restore fails on Linux~5.15 (netns bind-mount); \texttt{mysql} creation fails (multi-process runc)---all fall back to \texttt{docker restart}. The FSM sequencing guarantee is exercised at the decision layer regardless of checkpoint outcome.
+\textbf{CRIU.} Checkpoint creation succeeded on \texttt{postgres} ($\mu = 405$\,ms, $N=30$) and \texttt{redis}; restore fails on Linux~5.15 (netns bind-mount); \texttt{mysql} creation fails (multi-process runc)---all fall back to \texttt{docker restart}. The FSM sequencing guarantee is exercised at the decision layer regardless of checkpoint outcome. Linux~6.1 relaxes several of the netns restrictions that block restore on 5.15, and Kubernetes~1.30 (KEP-2008)\footnote{\url{https://github.com/kubernetes/enhancements/issues/2008}} provides a CRI-native checkpoint path that bypasses raw CRIU invocation.
 
 \textbf{Fault injection.} M3 rests on $N = 90$ synthetic episodes; injection inserts events directly into the \texttt{StatefulStateStore}, bypassing the eBPF probe path. Real VFS injection (\texttt{/dev/full}, \texttt{stress-ng}) would make full detection-to-recovery latency observable.
 
@@ -528,14 +528,44 @@ Two overhead sources are benchmarked (\texttt{results/overhead\_benchmark.json})
 
 \subsection{Future Work}
 
-The most direct extensions are Kubernetes deployment (DaemonSet-based probe agents, multi-node evaluation), real VFS fault injection to connect M3 to the full detection-to-recovery path, and formal verification of the FSM transition relation in Table~\ref{tab:fsm}---TLA+~\cite{b9} can express the safety properties; a framework like Anvil~\cite{b13} would extend this to liveness proofs for the full stateful control path.
+The most direct extensions are Kubernetes deployment (DaemonSet-based probe agents, multi-node evaluation), real VFS fault injection to connect M3 to the full detection-to-recovery path, and formal verification of the FSM transition relation in Table~\ref{tab:fsm}---TLA+~\cite{b9} can express the safety properties; a framework like Anvil~\cite{b13} would extend this to liveness proofs for the full stateful control path. In a Kubernetes setting (Fig.~\ref{fig:k8s}), each node runs a privileged DaemonSet pod that loads the eBPF probes and maintains local FSM instances, avoiding cross-node coordination in the reconcile loop. Workload classification shifts from the static \texttt{comm} allow-list to pod labels assigned by a mutating admission webhook, and \texttt{docker restart} is replaced by pod deletion through the owning controller.
+
+\begin{figure}[!t]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize,
+  nbox/.style={draw, rounded corners=2pt, minimum width=2.8cm,
+               minimum height=0.85cm, align=center, fill=gray!10},
+  wide/.style={draw, rounded corners=2pt, minimum width=6.4cm,
+               minimum height=0.50cm, align=center, fill=white},
+  arr/.style={-{Stealth[length=3pt, width=2pt]}, line width=0.6pt},
+  wlabel/.style={font=\tiny, text=black!70},
+]
+\node[nbox] (n1) at (-2.1, 2.2)
+  {\textbf{Node 1}\\eBPF probes, FSM, Executor};
+\node[nbox] (n2) at ( 2.1, 2.2)
+  {\textbf{Node 2}\\eBPF probes, FSM, Executor};
+\node[wlabel, below=1pt of n1] (w1) {[postgres] Type~F};
+\node[wlabel, below=1pt of n2] (w2) {[nginx] Type~S};
+\node[wide] (dash) at (0, -0.3)
+  {Central Dashboard \normalfont(traces, M2, divergence logs)};
+\draw[arr] (w1.south) -- ([xshift=-1.0cm]dash.north)
+  node[pos=0.5, left, font=\tiny] {logs};
+\draw[arr] (w2.south) -- ([xshift=1.0cm]dash.north)
+  node[pos=0.5, right, font=\tiny] {logs};
+\end{tikzpicture}
+\caption{Target Kubernetes deployment. Each node runs a DaemonSet
+pod with local probes and FSM instances; only traces and
+divergence metrics flow to the central dashboard.}
+\label{fig:k8s}
+\end{figure}
 
 \section{Conclusion}
 \label{sec:conclusion}
 
 Separating stateless and stateful containers onto parallel eBPF-driven control paths lets each track enforce only the constraints its failure semantics require. Stateless workloads carry no persistent state that an ill-timed restart could damage, so Type~S needs only a threshold DAG. Type~F adds a five-state FSM and WASM policy layer to enforce action sequencing and block \texttt{checkpoint\_and\_restart} until the audit phase completes. Executing each reconcile cycle on both the live FSM and a throwaway instance makes the FSM's effect on dispatch decisions directly observable.
 
-The ablation confirms that neither a stateless policy nor a memoryless baseline replicates the full system's behaviour---the two failure modes are complementary, not equivalent. FSM state persistence, WASM gating, and shadow execution together impose overhead that is negligible at the 5\,s operational timescale. The WASM policy layer accepts additional modules without modifying the FSM transition relation, and the divergence metric M2 provides a continuous, interpretable signal for monitoring control-plane health after deployment. These properties make the dual-track architecture a practical foundation for safe autonomous remediation in production container environments where stateless and stateful workloads coexist.
+The ablation confirms that neither a stateless policy nor a memoryless baseline replicates the full system's behaviour---the two failure modes are complementary, not equivalent. FSM state persistence, WASM gating, and shadow execution together impose overhead that is negligible at the 5\,s operational timescale. The WASM policy layer accepts additional modules without modifying the FSM transition relation, and the divergence metric M2 provides a continuous, interpretable signal for monitoring control-plane health after deployment. These properties make the dual-track architecture deployable in production environments where stateless and stateful workloads coexist.
 
 \begin{thebibliography}{00}
 

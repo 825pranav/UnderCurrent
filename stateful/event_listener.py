@@ -168,6 +168,33 @@ _DOCKER_COMM_MAP: dict[str, str] = {
     "mysqld":       "mysql",
 }
 
+# Per-thread comm prefixes.  bpf_get_current_comm() returns the *thread's*
+# comm, and multithreaded servers name their threads: mysqld performs almost
+# all of its disk I/O on threads called ib_io_wr-N, ib_log_writer,
+# ib_log_flush, ib_pg_flush_co and client work on threads called "connection";
+# only one thread in the process is literally "mysqld".  redis-server runs
+# background I/O on bio_* threads.  Verified against /proc/<pid>/task/*/comm
+# on 2026-09-01 (MySQL 9.6.0, Redis 8.6.2); without these prefixes mysql
+# produced zero attributed events under fault injection.
+_DOCKER_COMM_PREFIX: tuple = (
+    ("ib_",        "mysql"),   # InnoDB I/O, log, page-flush, purge threads
+    ("xpl_",       "mysql"),   # X-plugin workers
+    ("connection", "mysql"),   # client connection threads (8.0.26+ naming)
+    ("rpl_",       "mysql"),
+    ("bio_",       "redis"),   # redis background I/O threads
+)
+
+
+def _resolve_container(comm: str):
+    """Exact comm match first, then thread-name prefix match; None if neither."""
+    c = _DOCKER_COMM_MAP.get(comm)
+    if c is not None:
+        return c
+    for prefix, container in _DOCKER_COMM_PREFIX:
+        if comm.startswith(prefix):
+            return container
+    return None
+
 
 class EventListener:
     """
@@ -187,7 +214,7 @@ class EventListener:
     def handle_event(self, cpu, data, size):
         ev   = self.b["f_events"].event(data)
         comm = ev.comm.decode("utf-8", errors="replace").rstrip("\x00")
-        container = _DOCKER_COMM_MAP.get(comm)
+        container = _resolve_container(comm)
         if container is None:
             return  # not a Docker container process — discard
         etype = _ETYPE.get(ev.type, "unknown")
@@ -204,7 +231,7 @@ class EventListener:
     def handle_vol_event(self, cpu, data, size):
         ev   = self.b["vol_events"].event(data)
         comm = ev.comm.decode("utf-8", errors="replace").rstrip("\x00")
-        container = _DOCKER_COMM_MAP.get(comm)
+        container = _resolve_container(comm)
         if container is None:
             return  # not a Docker container process — discard
         etype = _VOL_ETYPE.get(ev.type, "unknown")

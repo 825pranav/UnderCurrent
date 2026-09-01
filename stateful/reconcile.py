@@ -144,6 +144,14 @@ def _decide(container: str, score: float, failures: list, fsm: ContainerFSM) -> 
             fsm_transition = f"{t[0]}→{t[1]}"
             current = fsm.state(container)
 
+    # The FSM state in which this cycle's action is AUTHORISED.  Captured after
+    # the degrade/audit transitions (steps 2–4) and before approve_repair
+    # (step 5), because the WASM sandbox re-checks the sequence constraint
+    # against the state that licensed the action, not the state the FSM moves
+    # to as a record of that authorisation (Audited→Repairing).  Gating on
+    # fsm_state_after made every live checkpoint_and_restart WASM-blocked.
+    fsm_state_at_dispatch = current
+
     # ── Step 5: checkpoint_and_restart fires approve_repair ───────────────────
     if action == "checkpoint_and_restart" and current == "Audited":
         t = fsm.apply(container, "approve_repair")
@@ -173,6 +181,7 @@ def _decide(container: str, score: float, failures: list, fsm: ContainerFSM) -> 
         "timestamp":       time.time(),
         # Stateful extension fields
         "fsm_state":       fsm_state_before,
+        "fsm_state_at_dispatch": fsm_state_at_dispatch,  # state that authorised `action`
         "fsm_state_after": fsm.state(container),   # state after this cycle's transitions
         "fsm_transition":  fsm_transition,
         "reversibility":   REVERSIBILITY.get(action, "unknown"),

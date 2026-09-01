@@ -12,7 +12,7 @@
 #     executed, stdout, stderr, decision_timestamp, action_timestamp
 #
 #   Stateful extension fields:
-#     node_type, fsm_state, fsm_state_after, fsm_transition, reversibility,
+#     node_type, fsm_state, fsm_state_at_dispatch, fsm_state_after, fsm_transition, reversibility,
 #     kernel_signals, dag_pattern, blocked_reason, wasm_blocked, wasm_reason
 #
 # Trace file: stateful/traces.jsonl  (separate from stateless/traces.jsonl)
@@ -60,6 +60,7 @@ def log_decision(decision: dict, action_result: dict) -> dict:
         # ── Stateful extension fields ─────────────────────────────────────────
         "node_type":          "F",
         "fsm_state":          decision.get("fsm_state"),
+        "fsm_state_at_dispatch": decision.get("fsm_state_at_dispatch"),
         "fsm_state_after":    decision.get("fsm_state_after"),
         "fsm_transition":     decision.get("fsm_transition"),   # e.g. "Healthy→Degraded"
         "reversibility":      (

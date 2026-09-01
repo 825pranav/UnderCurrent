@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# *** DO NOT USE. Runs dd inside the container; comm "dd" is dropped by the
+# *** eBPF comm filter so nothing is attributed. Use inject_fault_v2.sh.
 # inject_fault.sh — Inject a VFS write fault into a running container.
 #
 # Usage:

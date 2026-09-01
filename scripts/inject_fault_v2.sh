@@ -21,9 +21,11 @@
 # METHOD PER CONTAINER
 #   postgres  backend COPY ... TO '/dev/full'  → ENOSPC from comm "postgres"
 #             signal: vfs_write_error  (3 in window → 0.88 ≥ τ_repair)
-#   redis     redis-server SAVE of an ~80 MB RDB saturates the device → slow
+#   redis     redis-server SAVE of an ~50 MB RDB every second while the same
+#             host-side direct-I/O hog as mysql saturates the device → slow
 #             bios issued by comm "redis-server"; signal: blk_io_latency ≥ 10 ms
-#             (5 in window → 0.85 ≥ τ_repair)
+#             (5 in window → 0.85 ≥ τ_repair). SAVE alone is not enough on a
+#             fast virtio disk: measured 2026-09-01, every bio < 0.4 ms.
 #   mysql     mysqld synchronous commits (flush_log_at_trx_commit=1, O_DIRECT)
 #             while a host-side direct-I/O hog (dd, comm "dd" → dropped by the
 #             filter) saturates the same device: the noisy-neighbour fault.
@@ -61,6 +63,7 @@ check_disk(){
 cleanup(){
   case "$C" in
     redis)
+      [ -n "${HOG_PID:-}" ] && kill "$HOG_PID" 2>/dev/null; rm -f "$HOG_FILE"
       docker exec redis redis-cli FLUSHALL >/dev/null 2>&1
       docker exec redis redis-cli SAVE     >/dev/null 2>&1   # shrink dump.rdb back
       ;;
@@ -92,8 +95,12 @@ case "$C" in
     ;;
 
   redis)
+    # noisy neighbour (same as mysql): bounded direct-I/O rewrite loop on the host
+    ( while :; do dd if=/dev/zero of="$HOG_FILE" bs=4M count=$((HOG_MB/4)) \
+          oflag=direct conv=fsync 2>/dev/null || break; done ) &
+    HOG_PID=$!
     # Populate a bounded keyspace once, then repeatedly SAVE so redis-server
-    # itself writes ~80 MB through the device.
+    # itself writes ~50 MB through the contended device.
     docker exec redis redis-benchmark -t set -n "$REDIS_KEYS" -r "$REDIS_KEYS" -d 4096 -q >/dev/null 2>&1
     while [ "$(date +%s)" -lt "$END" ]; do
       check_disk || break

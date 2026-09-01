@@ -420,9 +420,16 @@ def execute(decision: dict) -> dict:
         }
 
     # ── WASM sandbox check (real mode only) ───────────────────────────────────
-    # Use fsm_state_after (state after Python-level FSM transitions) so the
-    # WASM module sees the same state the Python gate used for its decision.
-    fsm_state = decision.get("fsm_state_after", decision.get("fsm_state", "Healthy"))
+    # Gate on the FSM state that AUTHORISED the action (reconcile.py records it
+    # as fsm_state_at_dispatch: after degrade/audit, before approve_repair).
+    # Gating on fsm_state_after is wrong for checkpoint_and_restart: reconcile
+    # has already moved Audited→Repairing as the record of authorisation, and
+    # the sandbox (correctly) refuses C&R from Repairing — so every live C&R
+    # was blocked from 2026-06-20 until this fix.
+    fsm_state = decision.get(
+        "fsm_state_at_dispatch",
+        decision.get("fsm_state_after", decision.get("fsm_state", "Healthy")),
+    )
     score     = float(decision.get("score", 0.0))
 
     _t0 = time.perf_counter_ns()
@@ -453,8 +460,8 @@ def execute(decision: dict) -> dict:
 
 # --- Self-test ---
 if __name__ == "__main__":
-    # Decision dicts must include fsm_state_after so the WASM sandbox
-    # receives the correct post-transition FSM state (as reconcile.py provides).
+    # Decision dicts carry fsm_state_at_dispatch (as reconcile.py provides);
+    # fsm_state_after is the fallback for hand-built dicts.
 
     # no_action — always allowed (any FSM state)
     d = execute({"container": "postgres", "action": "no_action",
@@ -491,6 +498,16 @@ if __name__ == "__main__":
     d = execute({"container": "nonexistent_uc_f_test", "action": "checkpoint_and_restart",
                  "mode": "real", "fsm_state_after": "Audited", "score": 0.85})
     assert d["action"] == "checkpoint_and_restart", d
+
+    # checkpoint_and_restart — the real reconcile shape: authorised in Audited,
+    # FSM already advanced to Repairing.  Must be ALLOWED (regression test for
+    # the 2026-06-20 → 2026-09-01 gate bug).
+    d = execute({"container": "nonexistent_uc_f_test", "action": "checkpoint_and_restart",
+                 "mode": "real", "fsm_state": "Audited",
+                 "fsm_state_at_dispatch": "Audited", "fsm_state_after": "Repairing",
+                 "score": 0.85})
+    assert d["wasm_blocked"] is False and d["action"] == "checkpoint_and_restart", d
+    print("  checkpoint/Audited→Repairing: allowed ✓")
     assert d["wasm_blocked"] is False, d
     assert "checkpoint_success" in d, f"checkpoint_success field missing: {d}"
     assert "checkpoint_latency_ms" in d, f"checkpoint_latency_ms field missing: {d}"

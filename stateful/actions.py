@@ -10,7 +10,8 @@
 #
 # Action catalogue:
 #   no_action              (reversible)   — no-op; confidence below threshold
-#   flush_io_queue         (reversible)   — flush stalled I/O queues; first-line remedy
+#   flush_io_queue         (reversible)   — synchronous durable flush (CHECKPOINT /
+#                                           SAVE / FLUSH TABLES) inside the container
 #   checkpoint_and_restart (reversible)   — CRIU checkpoint then docker restore;
 #                                           falls back to docker restart if CRIU fails
 #   escalate               (conditional)  — page on-call; suppressed in shadow mode
@@ -146,18 +147,86 @@ def no_action(container: str) -> dict:
     return _result(container, "no_action", True)
 
 
+# ── Durable-flush primitives, one per stateful workload ───────────────────────
+# Each command is run *inside* the container via `docker exec` so the server
+# process itself performs the write.  Every primitive is synchronous: it returns
+# only after the workload reports the flush complete.
+#
+#   postgres  CHECKPOINT           — forces all dirty shared buffers to WAL+heap
+#   redis     SAVE (not BGSAVE)    — synchronous RDB dump; blocks until fsync'd
+#   mysql     FLUSH TABLES; FLUSH LOGS — closes/flushes table handles, rotates
+#                                    and fsyncs binlog + redo
+#
+# Verification (see scripts/verify_flush.py):
+#   postgres  pg_stat_checkpointer.num_requested          increments by 1
+#   redis     INFO persistence → rdb_last_save_time        advances
+#   mysql     Innodb_data_fsyncs increments; binlog file rotates
+#             (no SQL statement synchronously writes the InnoDB buffer pool;
+#              durability is the fsync'd redo log + binlog, which FLUSH LOGS forces)
+_FLUSH_CMD = {
+    "postgres": ["psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1",
+                 "-c", "CHECKPOINT;"],
+    "redis":    ["redis-cli", "SAVE"],
+    "mysql":    ["mysql", "-uroot", "-ppass", "-e", "FLUSH TABLES; FLUSH LOGS;"],
+}
+_FLUSH_TIMEOUT_S = 60
+
+
 def flush_io_queue(container: str) -> dict:
     """
-    Flush stalled I/O queues for the container.
-    In a real environment this would trigger a blkio cgroup reset or
-    send SIGSTOP/SIGCONT to unblock waiting syscalls.
-    Simulated here.
+    Force the workload to complete a durable flush of its in-memory state.
+
+    Runs the workload's native flush primitive (see _FLUSH_CMD) inside the
+    container.  The call is synchronous: success means the server itself has
+    reported the flush finished, so any later checkpoint_and_restart operates
+    on an on-disk state that is consistent with everything committed so far.
+
+    Result dict extra fields:
+        flush_latency_ms  (float) — wall time for the flush command
+        flush_cmd         (str)   — the primitive that was executed
     """
     print(f"[actions-f] flush_io_queue: {container}")
-    return _result(
-        container, "flush_io_queue", True,
-        stdout=f"I/O queue flush issued for {container} — blkio cgroup reset (no live orchestrator)",
+    cmd = _FLUSH_CMD.get(container)
+    if cmd is None:
+        result = _result(
+            container, "flush_io_queue", False,
+            stderr=f"no durable-flush primitive registered for {container!r}",
+        )
+        result["flush_latency_ms"] = 0.0
+        result["flush_cmd"] = ""
+        return result
+
+    t0 = time.perf_counter()
+    try:
+        proc = subprocess.run(
+            ["docker", "exec", container, *cmd],
+            capture_output=True, text=True, timeout=_FLUSH_TIMEOUT_S,
+        )
+        ok      = proc.returncode == 0
+        stdout  = proc.stdout.strip()
+        # mysql prints a password-on-CLI warning on stderr even on success
+        stderr  = "\n".join(
+            l for l in proc.stderr.strip().splitlines()
+            if "Using a password on the command line" not in l
+        )
+    except FileNotFoundError:
+        ok, stdout, stderr = False, "", "docker not found"
+    except subprocess.TimeoutExpired:
+        ok, stdout, stderr = False, "", f"flush timed out after {_FLUSH_TIMEOUT_S}s"
+    latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+    print(
+        f"[actions-f] flush_io_queue {container}: "
+        f"{'ok' if ok else 'FAILED'} ({latency_ms}ms) {' '.join(cmd)!r}"
     )
+    result = _result(
+        container, "flush_io_queue", ok,
+        stdout=f"{' '.join(cmd)} → {stdout or 'ok'} ({latency_ms}ms)",
+        stderr=stderr,
+    )
+    result["flush_latency_ms"] = latency_ms
+    result["flush_cmd"] = " ".join(cmd)
+    return result
 
 
 def checkpoint_and_restart(container: str) -> dict:

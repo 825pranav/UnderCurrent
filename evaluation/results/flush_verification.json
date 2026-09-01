@@ -1,0 +1,41 @@
+{
+  "postgres": {
+    "counter": "pg_stat_checkpointer.num_requested",
+    "before": 4,
+    "after": 5,
+    "success": true,
+    "flush_latency_ms": 38.03,
+    "pass": true
+  },
+  "redis": {
+    "counter": "rdb_last_save_time",
+    "before": 1788290709,
+    "after": 1788290746,
+    "success": true,
+    "flush_latency_ms": 49.87,
+    "pass": true
+  },
+  "mysql": {
+    "counter": "Innodb_data_fsyncs / binlog file",
+    "before": {
+      "fsyncs": 2103,
+      "binlog": "binlog.000037"
+    },
+    "after": {
+      "fsyncs": 2108,
+      "binlog": "binlog.000038"
+    },
+    "success": true,
+    "flush_latency_ms": 25.82,
+    "pass": true
+  },
+  "nginx": {
+    "counter": "n/a (no durable state)",
+    "success": false,
+    "pass": true
+  },
+  "_meta": {
+    "timestamp": 1788290747.047384,
+    "date": "2026-09-01 19:25:47 UTC"
+  }
+}

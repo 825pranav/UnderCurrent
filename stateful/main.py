@@ -111,7 +111,7 @@ def _simulate_events(store: StatefulStateStore, stop_event: threading.Event,
 def _real_events(store: StatefulStateStore, stop_event: threading.Event):
     """Capture live kernel events via eBPF and feed the StatefulStateStore (root required)."""
     try:
-        from event_listener import EventListener, _VOL_ETYPE, _DOCKER_COMM_MAP
+        from event_listener import EventListener, _VOL_ETYPE, _DOCKER_COMM_MAP, _resolve_container
     except ImportError as exc:
         print(f"{_RED}[main-f] ERROR: cannot import event_listener — {exc}{_RESET}")
         print(f"{_YELLOW}[main-f] Install bcc and run as root, or drop --real.{_RESET}")
@@ -126,7 +126,7 @@ def _real_events(store: StatefulStateStore, stop_event: threading.Event):
         def handle_event(self, cpu, data, size):
             raw  = self.b["f_events"].event(data)
             comm = raw.comm.decode("utf-8", errors="replace").rstrip("\x00")
-            container = _DOCKER_COMM_MAP.get(comm)
+            container = _resolve_container(comm)
             if container is None:
                 return  # not a Docker container process — discard
             ev = {0: "blk_io_latency", 1: "vfs_write_error", 2: "vfs_read_error"}.get(
@@ -146,7 +146,7 @@ def _real_events(store: StatefulStateStore, stop_event: threading.Event):
         def handle_vol_event(self, cpu, data, size):
             raw  = self.b["vol_events"].event(data)
             comm = raw.comm.decode("utf-8", errors="replace").rstrip("\x00")
-            container = _DOCKER_COMM_MAP.get(comm)
+            container = _resolve_container(comm)
             if container is None:
                 return  # not a Docker container process — discard
             record = {

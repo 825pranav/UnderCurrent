@@ -89,10 +89,35 @@ int trace_blk_done(struct pt_regs *ctx, struct request *req) {
     return 0;
 }
 
-// VFS write errors (kretprobe — fires on return with negative value)
+// Only genuine storage-layer failures count as VFS errors.  Non-blocking
+// sockets and pipes return -EAGAIN/-EINTR as a matter of routine (postgres
+// latch self-pipe, redis/mysql event loops), and a restart produces bursts
+// of them: counting every negative return made postgres and mysql score
+// 0.88 permanently and restart ~5×/min in a self-sustaining loop
+// (observed 2026-09-01, first 20 min of the corpus run).
+static inline int is_storage_error(long ret) {
+    switch (-ret) {
+    case 5:    /* EIO      */
+    case 28:   /* ENOSPC   */
+    case 30:   /* EROFS    */
+    case 122:  /* EDQUOT   */
+    case 27:   /* EFBIG    */
+    case 6:    /* ENXIO    */
+    case 19:   /* ENODEV   */
+    case 116:  /* ESTALE   */
+    case 121:  /* EREMOTEIO*/
+    case 117:  /* EUCLEAN  */
+    case 74:   /* EBADMSG  (integrity) */
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+// VFS write errors (kretprobe — fires on return with a storage errno)
 int trace_vfs_write_ret(struct pt_regs *ctx) {
     long ret = PT_REGS_RC(ctx);
-    if (ret >= 0) return 0;
+    if (ret >= 0 || !is_storage_error(ret)) return 0;
     struct f_event_t e = {};
     e.pid  = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
     e.tgid = bpf_get_current_pid_tgid() >> 32;
@@ -105,7 +130,7 @@ int trace_vfs_write_ret(struct pt_regs *ctx) {
 // VFS read errors
 int trace_vfs_read_ret(struct pt_regs *ctx) {
     long ret = PT_REGS_RC(ctx);
-    if (ret >= 0) return 0;
+    if (ret >= 0 || !is_storage_error(ret)) return 0;
     struct f_event_t e = {};
     e.pid  = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
     e.tgid = bpf_get_current_pid_tgid() >> 32;

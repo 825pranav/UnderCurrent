@@ -2,8 +2,20 @@ version: "3.9"
 
 # UnderCurrent evaluation containers
 #
-# Starts the three workloads used in the M3 fault-injection campaign.
-# Required for running scripts/run_episodes.py.
+# IMAGES ARE PINNED BY DIGEST ON PURPOSE. Do not "upgrade" these tags.
+# The committed trace corpus (9,132 traces) and the 90 MTTR episodes were
+# produced against exactly these images:
+#     postgres 18.3   redis 8.6.2   mysql 9.6.0   nginx 1.29.6
+# An earlier version of this file declared postgres:15 / redis:7, which was
+# never the environment the evaluation actually ran on. Bringing containers up
+# from those tags would silently swap in different database major versions and
+# make any rerun non-comparable against the existing corpus.
+#
+# PROVENANCE CAVEAT: the original containers were not created from this file.
+# They were created by hand (postgres/redis 2026-04-11, mysql 2026-06-19) and
+# the exact command was not recorded, so it is not fully reconstructable. The
+# digests below were read back from the running containers on 2026-09-01 and
+# are the authoritative record of what was measured.
 #
 # Usage:
 #   docker compose up -d
@@ -12,36 +24,64 @@ version: "3.9"
 #   python3 scripts/run_episodes.py --container mysql    --episodes 30
 #   docker compose down
 #
+# To restart an already-created container, prefer:
+#   docker restart <name>
+# which reuses the same image. Avoid `compose down && up` unless you intend to
+# recreate from the digests below.
+#
 # CRIU notes:
 #   docker checkpoint create requires experimental mode in /etc/docker/daemon.json:
 #     { "experimental": true }
-#   Restore (docker start --checkpoint) fails on Linux 5.15 due to netns constraints.
+#   Restore (docker start --checkpoint) fails: Docker resolves the restored task
+#   to PID 0 and aborts on bind-mount /proc/0/ns/net. This is a defect in
+#   Docker's experimental checkpoint path, not a kernel-version limitation.
+#   mysql fails earlier, during dump; cause not yet isolated.
 #   The run_episodes.py harness falls back to docker restart automatically.
 
 services:
   postgres:
-    image: postgres:15
+    image: postgres@sha256:52e6ffd11fddd081ae63880b635b2a61c14008c17fc98cdc7ce5472265516dd0
     container_name: postgres
     environment:
       POSTGRES_PASSWORD: pass
       POSTGRES_DB: testdb
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql
+    restart: "no"
 
   redis:
-    image: redis:7
+    image: redis@sha256:1f073813b641755b70b0200da64131bbeeb4ec5b633ca67772229b49820caafa
     container_name: redis
-    ports:
-      - "6379:6379"
-    restart: unless-stopped
+    restart: "no"
 
   mysql:
-    image: mysql:latest
+    image: mysql@sha256:24e450bbd24f621c71b10404c946cc9ea1cbb0e6e7464b2be2de5193dcf1d05b
     container_name: mysql
     environment:
       MYSQL_ROOT_PASSWORD: pass
       MYSQL_DATABASE: testdb
-    ports:
-      - "3306:3306"
-    restart: unless-stopped
+    volumes:
+      - mysqldata:/var/lib/mysql
+    restart: "no"
+
+  nginx:
+    image: nginx@sha256:dec7a90bd0973b076832dc56933fe876bc014929e14b4ec49923951405370112
+    container_name: nginx
+    restart: "no"
+
+# The two stateful containers were created with ANONYMOUS volumes (the images
+# declare VOLUME for their data directories). Those volumes hold the live
+# database state the evaluation ran against:
+#     postgres  a2cb23f9f72f...  59.17 MB  -> /var/lib/postgresql
+#     mysql     c8fe4337ace6...  215.3 MB  -> /var/lib/mysql
+# They are declared external and pinned by their real names so that (a) a
+# `compose up` reattaches to the existing data instead of silently creating a
+# fresh empty volume, and (b) `compose down -v` cannot delete them, since
+# compose never removes external volumes. Do not rename these.
+volumes:
+  pgdata:
+    external: true
+    name: a2cb23f9f72f3eebcd929e2ec7bf24526dcdf39099cf48e9ddbb3c28eb5abef2
+  mysqldata:
+    external: true
+    name: c8fe4337ace6bbf08b7576e1692471f32fec80aa848536596c2d4d4965dc07ad

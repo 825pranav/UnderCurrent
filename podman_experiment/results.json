@@ -1,0 +1,95 @@
+{
+  "postgres": {
+    "workload": "postgres",
+    "container": "pg-podman-ckpt-exp",
+    "checkpoint": {
+      "container": "pg-podman-ckpt-exp",
+      "phase": "checkpoint",
+      "success": true,
+      "latency_ms": 459.4,
+      "stdout": "6bafbcb61b445131cf3966cbd8123d15354aef4bf291a5abeac2abc228ee21d9",
+      "stderr": "",
+      "export_path": null,
+      "cmd": [
+        "podman",
+        "container",
+        "checkpoint",
+        "pg-podman-ckpt-exp"
+      ]
+    },
+    "restore": {
+      "container": "pg-podman-ckpt-exp",
+      "phase": "restore",
+      "success": false,
+      "latency_ms": 514.4,
+      "stdout": "",
+      "stderr": "Error: OCI runtime error: criu failed: type RESTORE errno 0",
+      "import_path": null,
+      "cmd": [
+        "podman",
+        "container",
+        "restore",
+        "pg-podman-ckpt-exp"
+      ],
+      "criu_log_tail": "(00.116515)     67: Opening 0x007b75d4148000-0x007b75d4150000 0000000000000000 (81) vma\n(00.116515)     70: Further fle=0x793174dcfc58, pid=70\n(00.116519)     70: epoll: Restore eventpoll-tfd: id 0x00003c tfd        4 events 0x000019 data 0x00630f3046db40\n(00.116526)     70: epoll: Restore eventpoll-tfd: id 0x00003c tfd        3 events 0x000019 data 0x00630f3046db28\n(00.116532)     67: Error (criu/files-reg.c:2143): Can't open file dev/shm/PostgreSQL.706684962 on restore: No such file or directory\n(00.116532)     70: Opening 0x007b75d4148000-0x007b75d4150000 0000000000000000 (81) vma\n(00.116534)     67: Error (criu/files-reg.c:2086): Can't open file dev/shm/PostgreSQL.706684962: No such file or directory\n(00.116536)     67: Error (criu/mem.c:1349): `- Can't open vma\n(00.116562)     70: Error (criu/files-reg.c:2143): Can't open file dev/shm/PostgreSQL.706684962 on restore: No such file or directory\n(00.116566)     70: Error (criu/files-reg.c:2086): Can't open file dev/shm/PostgreSQL.706684962: No such file or directory\n(00.116569)     70: Error (criu/mem.c:1349): `- Can't open vma\n(00.117122)     66: \tReceive fd for 2\n(00.117130)     66: Further fle=0x793174dd01d8, pid=66\n(00.117132)     66: \tReceive fd for 4\n(00.117135)     66: Further fle=0x793174dd0258, pid=66\n(00.117137)     66: epoll: Restore eventpoll-tfd: id 0x000033 tfd        4 events 0x000019 data 0x00630f3046db40\n(00.117140)     66: epoll: Restore eventpoll-tfd: id 0x000033 tfd        3 events 0x000019 data 0x00630f3046db28\n(00.117144)     66: Opening 0x007b75d4148000-0x007b75d4150000 0000000000000000 (81) vma\n(00.117158)     66: Error (criu/files-reg.c:2143): Can't open file dev/shm/PostgreSQL.706684962 on restore: No such file or directory\n(00.117159)     66: Error (criu/files-reg.c:2086): Can't open file dev/shm/PostgreSQL.706684962: No such file or directory\n(00.117160)     66: Error (criu/mem.c:1349): `- Can't open vma\n(00.117390)     69: \tReceive fd for 4\n(00.117399)     69: Further fle=0x793174dcfdd8, pid=69\n(00.117401)     69: epoll: Restore eventpoll-tfd: id 0x00003a tfd        4 events 0x000019 data 0x00630f3046db40\n(00.117404)     69: epoll: Restore eventpoll-tfd: id 0x00003a tfd        3 events 0x000019 data 0x00630f3046db28\n(00.117407)     69: Opening 0x007b75d4148000-0x007b75d4150000 0000000000000000 (81) vma\n(00.117420)     69: Error (criu/files-reg.c:2143): Can't open file dev/shm/PostgreSQL.706684962 on restore: No such file or directory\n(00.117422)     69: Error (criu/files-reg.c:2086): Can't open file dev/shm/PostgreSQL.706684962: No such file or directory\n(00.117423)     69: Error (criu/mem.c:1349): `- Can't open vma\n(00.117727)     74: \tReceive fd for 2\n(00.117791)     74: Further fle=0x793174dcf698, pid=74\n(00.117796)     74: \tReceive fd for 4\n(00.117801)     74: \tReceive fd for 4\n(00.117819)     73: \tReceive fd for 2\n(00.117830)     73: Further fle=0x793174dcf858, pid=73\n(00.117835)     73: \tReceive fd for 4\n(00.117839)     73: \tReceive fd for 4\n(00.117905)      1: Error (criu/cr-restore.c:1476): 72 exited, status=1\n(00.119999) mnt: Switching to new ns to clean ghosts\n(00.121937) Error (criu/cr-restore.c:2447): Restoring FAILED.\n"
+    },
+    "stage": "restore"
+  },
+  "redis": {
+    "workload": "redis",
+    "container": "redis-podman-ckpt-exp",
+    "checkpoint": {
+      "container": "redis-podman-ckpt-exp",
+      "phase": "checkpoint",
+      "success": true,
+      "latency_ms": 472.5,
+      "stdout": "3a35e464c890e9a0097c1da6096f70f7321375ba8bfabd503234aedf3daa1701",
+      "stderr": "",
+      "export_path": null,
+      "cmd": [
+        "podman",
+        "container",
+        "checkpoint",
+        "redis-podman-ckpt-exp"
+      ]
+    },
+    "restore": {
+      "container": "redis-podman-ckpt-exp",
+      "phase": "restore",
+      "success": false,
+      "latency_ms": 476.6,
+      "stdout": "",
+      "stderr": "Error: OCI runtime error: criu failed: type RESTORE errno 0",
+      "import_path": null,
+      "cmd": [
+        "podman",
+        "container",
+        "restore",
+        "redis-podman-ckpt-exp"
+      ],
+      "criu_log_tail": "(00.053857)      1: Thread    1 stack  0x248c0 rt_sigframe  0x2c8c0\n(00.053860)      1: x86: xsave runtime structure\n(00.053862)      1: x86: -----------------------\n(00.053864)      1: x86: cwd:0x37f swd:0 twd:0 fop:0 mxcsr:0x1fa5 mxcsr_mask:0xffff\n(00.053866)      1: x86: magic1:0x46505853 extended_size:836 xstate_bv:0x7 xstate_size:832\n(00.053868)      1: x86: xstate_bv: 0x7\n(00.053870)      1: x86: -----------------------\n(00.053874)      1: Thread    2 stack  0x2e100 rt_sigframe  0x36100\n(00.053876)      1: x86: xsave runtime structure\n(00.053878)      1: x86: -----------------------\n(00.053880)      1: x86: cwd:0x37f swd:0 twd:0 fop:0 mxcsr:0x1fa5 mxcsr_mask:0xffff\n(00.053882)      1: x86: magic1:0x46505853 extended_size:836 xstate_bv:0x7 xstate_size:832\n(00.053884)      1: x86: xstate_bv: 0x7\n(00.053886)      1: x86: -----------------------\n(00.053889)      1: Thread    3 stack  0x37940 rt_sigframe  0x3f940\n(00.053891)      1: x86: xsave runtime structure\n(00.053893)      1: x86: -----------------------\n(00.053895)      1: x86: cwd:0x37f swd:0 twd:0 fop:0 mxcsr:0x1fa5 mxcsr_mask:0xffff\n(00.053897)      1: x86: magic1:0x46505853 extended_size:836 xstate_bv:0x7 xstate_size:832\n(00.053899)      1: x86: xstate_bv: 0x7\n(00.053901)      1: x86: -----------------------\n(00.053905)      1: Thread    4 stack  0x41180 rt_sigframe  0x49180\n(00.053907)      1: x86: xsave runtime structure\n(00.053909)      1: x86: -----------------------\n(00.053911)      1: x86: cwd:0x37f swd:0 twd:0 fop:0 mxcsr:0x1fa5 mxcsr_mask:0xffff\n(00.053913)      1: x86: magic1:0x46505853 extended_size:836 xstate_bv:0x7 xstate_size:832\n(00.053915)      1: x86: xstate_bv: 0x7\n(00.053917)      1: x86: -----------------------\n(00.053921)      1: Thread    5 stack  0x4a9c0 rt_sigframe  0x529c0\n(00.053978)      1: Going to chroot into /proc/self/fd/39\n(00.053985)      1: Restoring umask to 77\n(00.054012)      1: task_args: 0x55000\ntask_args->pid: 1\ntask_args->nr_threads: 6\ntask_args->clone_restore_fn: 0x11db0\ntask_args->thread_args: 0x55540\n(00.054020) pie: 1: Switched to the restorer 1\n(00.054385) Error (criu/cr-restore.c:1492): 27828 stopped by signal 11: Segmentation fault\n(00.054672) mnt: Switching to new ns to clean ghosts\n(00.055954) Error (criu/cr-restore.c:2447): Restoring FAILED.\n"
+    },
+    "stage": "restore"
+  },
+  "mysql": {
+    "workload": "mysql",
+    "container": "mysql-podman-ckpt-exp",
+    "checkpoint": {
+      "container": "mysql-podman-ckpt-exp",
+      "phase": "checkpoint",
+      "success": false,
+      "latency_ms": 369.5,
+      "stdout": "",
+      "stderr": "time=\"2026-09-02T00:34:21+05:30\" level=warning msg=\"--- Quoting \\\"/var/lib/containers/storage/overlay-containers/6945f1fa5d7476a8d018f81b94fe9fcbc1f1579c4244023cb19c4363d44afa0c/userdata/dump.log\\\"\"\ntime=\"2026-09-02T00:34:21+05:30\" level=warning msg=\"5733:(00.243655) mnt: Mount is not fully visible ./dev\"\ntime=\"2026-09-02T00:34:21+05:30\" level=warning msg=\"5734:(00.243689) mnt: \\tmount has children ./dev\"\ntime=\"2026-09-02T00:34:21+05:30\" level=warning msg=\"5735:(00.249709) mnt: \\t8672: 65:/ @ ./proc\"\ntime=\"2026-09-02T00:34:21+05:30\" level=warning msg=\"5736:(00.249721) mnt: \\t8670: 5c:/ @ ./\"\ntime=\"2026-09-02T00:34:21+05:30\" level=warning msg=\"5737:(00.249736) Dumping file-locks\"\ntime=\"2026-09-02T00:34:21+05:30\" level=warning msg=\"5738:(00.249739) Error (criu/file-lock.c:110): Some file locks are hold by dumping tasks! You can try --file-locks to dump them.\"\ntime=\"2026-09-02T00:34:21+05:30\" level=warning msg=...\ntime=\"2026-09-02T00:34:21+05:30\" level=warning msg=\"5740:(00.249816) Running network-unlock scripts\"\ntime=\"2026-09-02T00:34:21+05:30\" level=warning msg=\"5741:(00.249818) \\tRPC\"\ntime=\"2026-09-02T00:34:21+05:30\" level=warning msg=\"5742:(00.267090) Unfreezing tasks into 1\"\ntime=\"2026-09-02T00:34:21+05:30\" level=warning msg=\"5743:(00.267108) \\tUnseizing 28148 into 1\"\ntime=\"2026-09-02T00:34:21+05:30\" level=warning msg=\"5744:(00.267117) \\tUnseizing 28259 into 1\"\ntime=\"2026-09-02T00:34:21+05:30\" level=warning msg=\"5745:(00.267171) Error (criu/cr-dump.c:1781): Dumping FAILED.\"\ntime=\"2026-09-02T00:34:21+05:30\" level=warning msg=---\ntime=\"2026-09-02T00:34:21+05:30\" level=error msg=\"criu failed: type DUMP errno 0\"\nError: `/usr/bin/runc checkpoint --image-path /var/lib/containers/storage/overlay-containers/6945f1fa5d7476a8d018f81b94fe9fcbc1f1579c4244023cb19c4363d44afa0c/userdata/checkpoint --work-path /var/lib/containers/storage/overlay-containers/6945f1fa5d7476a8d018f81b94fe9fcbc1f1579c4244023cb19c4363d44afa0c/userdata 6945f1fa5d7476a8d018f81b94fe9fcbc1f1579c4244023cb19c4363d44afa0c` failed: exit status 1",
+      "export_path": null,
+      "cmd": [
+        "podman",
+        "container",
+        "checkpoint",
+        "mysql-podman-ckpt-exp"
+      ],
+      "criu_log_tail": "(00.212695) Dumping task cwd id 0x5c root id 0x9\n(00.212738) mnt: Dumping mountpoints\n(00.212741) mnt: \t8625: 6c:/ @ ./sys/dev/block\n(00.218611) mnt: \t8624: 6b:/ @ ./sys/firmware\n(00.225865) mnt: \t8623: 6a:/ @ ./proc/scsi\n(00.234473) mnt: \t8622: 66:/null @ ./proc/timer_list\n(00.234523) mnt: \t8621: 66:/null @ ./proc/latency_stats\n(00.234526) mnt: \t8620: 66:/null @ ./proc/keys\n(00.234528) mnt: \t8619: 66:/null @ ./proc/kcore\n(00.234529) mnt: \t8618: 69:/ @ ./proc/acpi\n(00.243571) mnt: \t8617: 65:/sysrq-trigger @ ./proc/sysrq-trigger\n(00.243584) mnt: \t8616: 65:/sys @ ./proc/sys\n(00.243586) mnt: \t8615: 65:/irq @ ./proc/irq\n(00.243588) mnt: \t8614: 65:/fs @ ./proc/fs\n(00.243590) mnt: \t8613: 65:/bus @ ./proc/bus\n(00.243591) mnt: \t8612: 65:/asound @ ./proc/asound\n(00.243594) mnt: \t8683: 1c:/ @ ./sys/fs/cgroup\n(00.243596) mnt: \t8682: 800003:/var/lib/containers/storage/volumes/feb699ac71e1d8f98c4eefea8d17684c1111b75d12832d116dcdfc685c928800/_data @ ./var/lib/mysql\n(00.243599) mnt: \t8681: 19:/containers/storage/overlay-containers/6945f1fa5d7476a8d018f81b94fe9fcbc1f1579c4244023cb19c4363d44afa0c/userdata/hostname @ ./etc/hostname\n(00.243601) mnt: \t8680: 5b:/ @ ./dev/shm\n(00.243603) mnt: \t8679: 19:/containers/storage/overlay-containers/6945f1fa5d7476a8d018f81b94fe9fcbc1f1579c4244023cb19c4363d44afa0c/userdata/hosts @ ./etc/hosts\n(00.243604) mnt: \t8678: 19:/containers/storage/overlay-containers/6945f1fa5d7476a8d018f81b94fe9fcbc1f1579c4244023cb19c4363d44afa0c/userdata/resolv.conf @ ./etc/resolv.conf\n(00.243606) mnt: \t8677: 19:/containers/storage/overlay-containers/6945f1fa5d7476a8d018f81b94fe9fcbc1f1579c4244023cb19c4363d44afa0c/userdata/.containerenv @ ./run/.containerenv\n(00.243608) mnt: \t8676: 63:/ @ ./dev/mqueue\n(00.243649) mnt: \t8675: 68:/ @ ./dev/pts\n(00.243651) mnt: \t8674: 67:/ @ ./sys\n(00.243653) mnt: \t8673: 66:/ @ ./dev\n(00.243655) mnt: Mount is not fully visible ./dev\n(00.243689) mnt: \tmount has children ./dev\n(00.249709) mnt: \t8672: 65:/ @ ./proc\n(00.249721) mnt: \t8670: 5c:/ @ ./\n(00.249736) Dumping file-locks\n(00.249739) Error (criu/file-lock.c:110): Some file locks are hold by dumping tasks! You can try --file-locks to dump them.\n(00.249812) Unlock network\n(00.249816) Running network-unlock scripts\n(00.249818) \tRPC\n(00.267090) Unfreezing tasks into 1\n(00.267108) \tUnseizing 28148 into 1\n(00.267117) \tUnseizing 28259 into 1\n(00.267171) Error (criu/cr-dump.c:1781): Dumping FAILED.\n"
+    },
+    "stage": "checkpoint"
+  }
+}

@@ -393,8 +393,8 @@ if __name__ == "__main__":
          "kernel_signals": [], "dag_pattern": "nominal",
          "reversibility": "reversible", "wasm_blocked": False, "blocked_reason": None,
          "fsm_state": "Healthy"},
-        # etcd: wasm-blocked escalate — counts as suppressed
-        {"container": "etcd", "node_type": "F", "mode": "real",
+        # mysql: wasm-blocked escalate — counts as suppressed
+        {"container": "mysql", "node_type": "F", "mode": "real",
          "action": "no_action", "score": 0.97, "why": "wasm blocked",
          "trace_time": now,
          "kernel_signals": ["volume_mount_lost"], "dag_pattern": "io_degradation_critical",
@@ -431,7 +431,7 @@ if __name__ == "__main__":
     assert result["mttr"]["stateful"]  == 30.0, result["mttr"]["stateful"]
 
     # Real non-no_action decisions: nginx restart (reversible), postgres flush (reversible)
-    # etcd is no_action (wasm blocked it) — no reversibility field applies
+    # mysql is no_action (wasm blocked it) — no reversibility field applies
     # reversibility_ratio all = 2/2 = 1.0
     assert result["reversibility_ratio"]["all"]       == 1.0, result["reversibility_ratio"]
     assert result["reversibility_ratio"]["stateless"] == 1.0
@@ -440,8 +440,8 @@ if __name__ == "__main__":
     # explanation_completeness: all 6 traces have all required fields
     assert result["explanation_completeness"]["all"] == 1.0, result["explanation_completeness"]
 
-    # suppression: etcd has wasm_blocked=True → 1 suppressed out of 5 real decisions
-    # (sl real: nginx×2; sf real: postgres×2 + etcd×1 = 5 total real, shadow excluded)
+    # suppression: mysql has wasm_blocked=True → 1 suppressed out of 5 real decisions
+    # (sl real: nginx×2; sf real: postgres×2 + mysql×1 = 5 total real, shadow excluded)
     assert result["unsafe_action_suppression_rate"]["all"] == round(1 / 5, 4), \
         result["unsafe_action_suppression_rate"]
     assert result["unsafe_action_suppression_rate"]["stateless"] == 0.0

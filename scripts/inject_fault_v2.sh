@@ -47,7 +47,7 @@ END=$(( $(date +%s) + D ))
 MIN_FREE_GB="${MIN_FREE_GB:-8}"
 HOG_FILE="${HOG_FILE:-/var/tmp/uc_iohog}"  # host-side direct-I/O hog (mysql fault)
 HOG_MB="${HOG_MB:-1024}"                    # rewritten in place; never grows past this
-MYSQL_MAX_ROWS="${MYSQL_MAX_ROWS:-1500}"    # 1500 × 60 KB ≈ 90 MB ceiling
+MYSQL_MAX_ROWS="${MYSQL_MAX_ROWS:-3000}"    # 3000 × 6 KB ≈ 18 MB (+ binlog copy) ceiling
 REDIS_KEYS="${REDIS_KEYS:-20000}"           # 20000 × 4 KB ≈ 80 MB RDB ceiling
 
 log(){ echo "[inject-v2] $(date +%H:%M:%S) $*"; }
@@ -60,10 +60,16 @@ check_disk(){
   fi
 }
 
+# The controller usually restarts the target container right at the end of a
+# slot (C&R), so cleanup must wait for it to accept connections again.
+wait_mysql(){ for i in $(seq 1 45); do docker exec mysql mysqladmin -uroot -ppass ping >/dev/null 2>&1 && return 0; sleep 2; done; return 1; }
+wait_redis(){ for i in $(seq 1 45); do [ "$(docker exec redis redis-cli PING 2>/dev/null)" = PONG ] && return 0; sleep 2; done; return 1; }
+
 cleanup(){
   case "$C" in
     redis)
       [ -n "${HOG_PID:-}" ] && kill "$HOG_PID" 2>/dev/null; rm -f "$HOG_FILE"
+      wait_redis || log "redis: WARN not reachable for cleanup"
       docker exec redis redis-cli FLUSHALL >/dev/null 2>&1
       docker exec redis redis-cli SAVE     >/dev/null 2>&1   # shrink dump.rdb back
       ;;
@@ -73,8 +79,10 @@ cleanup(){
       # also copied into the binlog (~90 MB per cycle otherwise). No replication
       # is configured, so RESET is safe. (PURGE ... BEFORE NOW() keeps the
       # just-rotated file and leaked ~900 MB per cycle.)
+      wait_mysql || log "mysql: WARN not reachable for cleanup"
       docker exec mysql mysql -uroot -ppass -e \
-        "DROP DATABASE IF EXISTS uc_load; RESET BINARY LOGS AND GTIDS;" >/dev/null 2>&1
+        "DROP DATABASE IF EXISTS uc_load; RESET BINARY LOGS AND GTIDS;" >/dev/null 2>&1 \
+        && log "mysql: load DB dropped, binlogs reset" || log "mysql: WARN cleanup failed"
       ;;
   esac
   log "complete: ${C} (free: $(free_gb) GB)"
@@ -120,16 +128,15 @@ case "$C" in
     rows=0
     while [ "$(date +%s)" -lt "$END" ] && [ "$rows" -lt "$MYSQL_MAX_ROWS" ]; do
       check_disk || break
-      # 50 rows per statement, each an autocommitted 60 KB write from mysqld.
+      # 50 rows per statement, each an autocommitted 6 KB write from mysqld
+      # (fsync per commit); the hog supplies the latency, not the volume.
       timeout 60 docker exec mysql mysql -uroot -ppass uc_load -e \
-        "INSERT INTO t (p) SELECT REPEAT('x',60000) FROM information_schema.columns LIMIT 50;" >/dev/null 2>&1
+        "INSERT INTO t (p) SELECT REPEAT('x',6000) FROM information_schema.columns LIMIT 50;" >/dev/null 2>&1
       rows=$((rows + 50))
-      # recycle: once at the cap, truncate and keep going until END
-      if [ "$rows" -ge "$MYSQL_MAX_ROWS" ] && [ "$(date +%s)" -lt "$END" ]; then
-        docker exec mysql mysql -uroot -ppass -e "TRUNCATE uc_load.t;" >/dev/null 2>&1
-        rows=0
-      fi
+      sleep 0.5
     done
+    # keep the hog (and mysqld's background flushing) going until END even if the row cap hit early
+    while [ "$(date +%s)" -lt "$END" ]; do sleep 1; done
     ;;
 
   nginx)

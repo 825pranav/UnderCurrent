@@ -314,6 +314,10 @@ def checkpoint_and_restart(container: str) -> dict:
         except (FileNotFoundError, subprocess.TimeoutExpired):
             fallback_ok = False
             fallback = type("R", (), {"stdout": "", "stderr": "docker restart failed"})()
+        # The checkpoint image is useless once its restore has failed; drop it
+        # so repeated C&R cycles do not accumulate images under /var/lib/docker.
+        subprocess.run(["docker", "checkpoint", "rm", container, ckpt_name],
+                       capture_output=True, text=True, timeout=30)
 
         result = _result(
             container, "checkpoint_and_restart", fallback_ok,

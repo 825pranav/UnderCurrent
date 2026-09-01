@@ -40,12 +40,31 @@ sys.path.insert(0, os.path.join(_REPO, "stateful"))
 from state_store import StatefulStateStore
 from fsm import ContainerFSM
 from reconcile import reconcile
-from actions import execute
+from actions import execute, checkpoint_and_restart
 
 _SCRIPTS = os.path.dirname(__file__)
-# Per-workload output: episodes_<container>.jsonl and mttr_<container>.json
-def _episodes_path(container): return os.path.join(_SCRIPTS, f"episodes_{container}.jsonl")
-def _summary_path(container):  return os.path.join(_SCRIPTS, f"mttr_{container}.json")
+# Per-workload output: episodes_<container>[_naive].jsonl, mttr_<container>[_naive].json
+def _suffix(controller):       return "" if controller == "undercurrent" else f"_{controller}"
+def _episodes_path(container, controller="undercurrent"):
+    return os.path.join(_SCRIPTS, f"episodes_{container}{_suffix(controller)}.jsonl")
+def _summary_path(container, controller="undercurrent"):
+    return os.path.join(_SCRIPTS, f"mttr_{container}{_suffix(controller)}.json")
+
+
+# ── Naive baseline controller ─────────────────────────────────────────────────
+# A local restart-on-signal controller: the moment any fault event is present
+# for the container it dispatches checkpoint_and_restart, with no confidence
+# score, no FSM, no durable flush first.  It calls the action function
+# DIRECTLY — routing it through execute() would apply the same WASM/FSM policy
+# gate as UnderCurrent and silently block it (a placeholder BaselineController
+# with score=-1.0 already demonstrates that failure mode as 30/30 timeouts).
+# This is a naive local controller, not a Kubernetes liveness-probe policy.
+def _naive_decisions(store, container):
+    if store.get_failures(container):
+        return [{"container": container, "action": "checkpoint_and_restart",
+                 "fsm_state": "n/a", "score": None, "mode": "real",
+                 "why": "naive: any fault event → immediate restart"}]
+    return []
 
 
 def _ensure_running(container: str) -> bool:
@@ -77,7 +96,8 @@ def _inject_fault(store: StatefulStateStore, container: str, n: int = 8):
         })
 
 
-def run_episode(n: int, container: str, interval: float, timeout: float) -> dict:
+def run_episode(n: int, container: str, interval: float, timeout: float,
+                controller: str = "undercurrent") -> dict:
     """
     Single episode. Returns result dict.
     Creates a fresh store + FSM each time so episodes are independent.
@@ -99,7 +119,10 @@ def run_episode(n: int, container: str, interval: float, timeout: float) -> dict
         time.sleep(interval)
         cycle += 1
 
-        decisions = reconcile(store, fsm, shadow=False)
+        if controller == "naive":
+            decisions = _naive_decisions(store, container)
+        else:
+            decisions = reconcile(store, fsm, shadow=False)
         for d in decisions:
             if d["container"] != container:
                 continue
@@ -109,7 +132,10 @@ def run_episode(n: int, container: str, interval: float, timeout: float) -> dict
             states_visited.append(fsm_state)
             actions_taken.append(action)
 
-            result = execute(d)
+            if controller == "naive":
+                result = checkpoint_and_restart(container)   # direct, ungated
+            else:
+                result = execute(d)
             ckpt_ok = result.get("checkpoint_success", False)
 
             print(
@@ -134,6 +160,7 @@ def run_episode(n: int, container: str, interval: float, timeout: float) -> dict
 
     return {
         "episode":        n,
+        "controller":     controller,
         "container":      container,
         "fault_time":     fault_time,
         "first_cr_time":  first_cr_time,
@@ -152,22 +179,25 @@ def main():
     ap.add_argument("--interval",  type=float, default=5.0)
     ap.add_argument("--timeout",   type=float, default=120.0)
     ap.add_argument("--cooldown",  type=float, default=5.0)
+    ap.add_argument("--controller", choices=["undercurrent", "naive"], default="undercurrent",
+                    help="undercurrent = FSM-gated reconcile via execute(); "
+                         "naive = restart immediately on any signal (no flush, no gate)")
     args = ap.parse_args()
 
     if not _ensure_running(args.container):
         sys.exit(1)
 
-    EPISODES_OUT = _episodes_path(args.container)
-    SUMMARY_OUT  = _summary_path(args.container)
+    EPISODES_OUT = _episodes_path(args.container, args.controller)
+    SUMMARY_OUT  = _summary_path(args.container, args.controller)
 
     mttrs   = []
     open(EPISODES_OUT, "w").close()
 
     for ep in range(1, args.episodes + 1):
         print(f"\n{'='*56}")
-        print(f"[episodes] {ep}/{args.episodes}  container={args.container}")
+        print(f"[episodes] {ep}/{args.episodes}  container={args.container}  controller={args.controller}")
 
-        result = run_episode(ep, args.container, args.interval, args.timeout)
+        result = run_episode(ep, args.container, args.interval, args.timeout, args.controller)
 
         with open(EPISODES_OUT, "a") as f:
             f.write(json.dumps(result) + "\n")
@@ -189,6 +219,7 @@ def main():
         variance = sum((x - mean) ** 2 for x in mttrs) / n
         summary  = {
             "container":    args.container,
+            "controller":   args.controller,
             "n_episodes":   args.episodes,
             "n_recovered":  n,
             "n_timed_out":  args.episodes - n,
@@ -201,6 +232,7 @@ def main():
     else:
         summary = {
             "container":   args.container,
+            "controller":  args.controller,
             "n_episodes":  args.episodes,
             "n_recovered": 0,
             "n_timed_out": args.episodes,

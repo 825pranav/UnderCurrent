@@ -48,7 +48,7 @@ BANNER = f"""{_CYAN}{_BOLD}
 ║     Stateless · Risk-Aware Remediation       ║
 ╚══════════════════════════════════════════════╝{_RESET}"""
 
-SIMULATED_CONTAINERS = ["nginx", "pyapp", "redis", "worker", "gateway"]
+SIMULATED_CONTAINERS = ["nginx"]   # the only real Type-S workload (see docker-compose.yml)
 SIMULATED_EVENTS     = ["process_exit", "tcp_connect", "tcp_connect"]
 
 

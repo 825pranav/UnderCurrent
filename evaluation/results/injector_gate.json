@@ -1,0 +1,65 @@
+{
+  "postgres": {
+    "track": "F",
+    "records_real": 15,
+    "max_score": 0.88,
+    "actions": [
+      "checkpoint_and_restart",
+      "flush_io_queue",
+      "no_action"
+    ],
+    "kernel_signals": [
+      "blk_io_latency_normal",
+      "vfs_read_error",
+      "vfs_write_error"
+    ],
+    "pass": true
+  },
+  "redis": {
+    "track": "F",
+    "records_real": 14,
+    "max_score": 0.5867,
+    "actions": [
+      "flush_io_queue"
+    ],
+    "kernel_signals": [
+      "blk_io_latency_high",
+      "blk_io_latency_normal",
+      "vfs_read_error"
+    ],
+    "pass": true
+  },
+  "mysql": {
+    "track": "F",
+    "records_real": 12,
+    "max_score": 0.88,
+    "actions": [
+      "checkpoint_and_restart",
+      "flush_io_queue",
+      "no_action"
+    ],
+    "kernel_signals": [
+      "blk_io_latency_high",
+      "blk_io_latency_normal",
+      "vfs_write_error"
+    ],
+    "pass": true
+  },
+  "nginx": {
+    "track": "S",
+    "records_real": 17,
+    "max_score": 0.95,
+    "actions": [
+      "reschedule"
+    ],
+    "kernel_signals": [
+      "process_exit"
+    ],
+    "pass": true
+  },
+  "_wasm_fallback_lines": 0,
+  "_meta": {
+    "date": "2026-09-01 21:21:19 UTC",
+    "inject_s": 60
+  }
+}

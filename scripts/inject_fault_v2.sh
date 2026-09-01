@@ -16,22 +16,26 @@
 #   * every loop checks free space and aborts below MIN_FREE_GB
 #   * mysql inserts are capped at MYSQL_MAX_ROWS and the table is dropped on exit
 #   * redis keyspace is capped at REDIS_KEYS and FLUSHALL'd on exit
-#   * the block-I/O throttle (cgroup v2 io.max) is always reset on exit
+#   * the host I/O-hog file is capped at HOG_MB and always removed on exit
 #
 # METHOD PER CONTAINER
 #   postgres  backend COPY ... TO '/dev/full'  → ENOSPC from comm "postgres"
 #             signal: vfs_write_error  (3 in window → 0.88 ≥ τ_repair)
-#   redis     redis-server SAVE under a write throttle → slow bios from
-#             comm "redis-server"; signal: blk_io_latency ≥ 10 ms
+#   redis     redis-server SAVE of an ~80 MB RDB saturates the device → slow
+#             bios issued by comm "redis-server"; signal: blk_io_latency ≥ 10 ms
 #             (5 in window → 0.85 ≥ τ_repair)
 #   mysql     mysqld synchronous commits (flush_log_at_trx_commit=1, O_DIRECT)
-#             under the same throttle; signal: blk_io_latency from comm "mysqld"
+#             while a host-side direct-I/O hog (dd, comm "dd" → dropped by the
+#             filter) saturates the same device: the noisy-neighbour fault.
+#             mysqld's own bios (threads ib_io_wr-N / ib_log_* / connection)
+#             queue behind it → blk_io_latency ≥ 10 ms attributed to mysql.
+#             NOTE: a cgroup io.max throttle does NOT work here — it delays
+#             bios before the block layer, so the probes never see latency.
 #   nginx     Type-S: kill one worker so sched_process_exit sees comm "nginx";
 #             the master (PID 1) respawns it.
 #
 # Usage: ./inject_fault_v2.sh <container> [duration_s]
-# Needs: docker group for docker exec; sudo (cached via `sudo -v`) only for
-#        writing io.max on redis/mysql.
+# Needs: docker group for docker exec. No sudo.
 
 set -uo pipefail
 C="${1:?Usage: inject_fault_v2.sh <container> [duration_s]}"
@@ -39,8 +43,8 @@ D="${2:-30}"
 END=$(( $(date +%s) + D ))
 
 MIN_FREE_GB="${MIN_FREE_GB:-8}"
-THROTTLE_BPS="${THROTTLE_BPS:-1048576}"     # 1 MiB/s write cap during injection
-BLKDEV="${BLKDEV:-253:0}"                   # ubuntu--vg-ubuntu--lv (lsblk MAJ:MIN)
+HOG_FILE="${HOG_FILE:-/var/tmp/uc_iohog}"  # host-side direct-I/O hog (mysql fault)
+HOG_MB="${HOG_MB:-1024}"                    # rewritten in place; never grows past this
 MYSQL_MAX_ROWS="${MYSQL_MAX_ROWS:-1500}"    # 1500 × 60 KB ≈ 90 MB ceiling
 REDIS_KEYS="${REDIS_KEYS:-20000}"           # 20000 × 4 KB ≈ 80 MB RDB ceiling
 
@@ -54,30 +58,20 @@ check_disk(){
   fi
 }
 
-cg_path(){ echo "/sys/fs/cgroup/system.slice/docker-$(docker inspect "$1" --format '{{.Id}}').scope"; }
-throttle_on(){
-  local p; p=$(cg_path "$1")
-  echo "$BLKDEV wbps=$THROTTLE_BPS" | sudo -n tee "$p/io.max" >/dev/null \
-    && log "$1: io.max wbps=$THROTTLE_BPS" || log "$1: WARN could not set io.max (sudo not cached?)"
-}
-throttle_off(){
-  local p; p=$(cg_path "$1")
-  echo "$BLKDEV wbps=max" | sudo -n tee "$p/io.max" >/dev/null 2>&1 && log "$1: io.max reset"
-}
-
 cleanup(){
   case "$C" in
     redis)
-      throttle_off redis
       docker exec redis redis-cli FLUSHALL >/dev/null 2>&1
       docker exec redis redis-cli SAVE     >/dev/null 2>&1   # shrink dump.rdb back
       ;;
     mysql)
-      throttle_off mysql
-      # DROP the load table, then rotate + purge binlogs: every inserted row is
-      # also copied into the binlog, which would otherwise grow ~90 MB per cycle.
+      [ -n "${HOG_PID:-}" ] && kill "$HOG_PID" 2>/dev/null; rm -f "$HOG_FILE"
+      # DROP the load table, then delete the binlogs: every inserted row is
+      # also copied into the binlog (~90 MB per cycle otherwise). No replication
+      # is configured, so RESET is safe. (PURGE ... BEFORE NOW() keeps the
+      # just-rotated file and leaked ~900 MB per cycle.)
       docker exec mysql mysql -uroot -ppass -e \
-        "DROP DATABASE IF EXISTS uc_load; FLUSH LOGS; PURGE BINARY LOGS BEFORE NOW();" >/dev/null 2>&1
+        "DROP DATABASE IF EXISTS uc_load; RESET BINARY LOGS AND GTIDS;" >/dev/null 2>&1
       ;;
   esac
   log "complete: ${C} (free: $(free_gb) GB)"
@@ -98,9 +92,8 @@ case "$C" in
     ;;
 
   redis)
-    throttle_on redis
     # Populate a bounded keyspace once, then repeatedly SAVE so redis-server
-    # itself writes ~80 MB through the throttled device.
+    # itself writes ~80 MB through the device.
     docker exec redis redis-benchmark -t set -n "$REDIS_KEYS" -r "$REDIS_KEYS" -d 4096 -q >/dev/null 2>&1
     while [ "$(date +%s)" -lt "$END" ]; do
       check_disk || break
@@ -110,7 +103,10 @@ case "$C" in
     ;;
 
   mysql)
-    throttle_on mysql
+    # noisy neighbour: rewrite a bounded file with direct I/O + fsync in a loop
+    ( while :; do dd if=/dev/zero of="$HOG_FILE" bs=4M count=$((HOG_MB/4)) \
+          oflag=direct conv=fsync 2>/dev/null || break; done ) &
+    HOG_PID=$!
     docker exec mysql mysql -uroot -ppass -e \
       "CREATE DATABASE IF NOT EXISTS uc_load;
        CREATE TABLE IF NOT EXISTS uc_load.t (id INT AUTO_INCREMENT PRIMARY KEY, p BLOB);" >/dev/null 2>&1

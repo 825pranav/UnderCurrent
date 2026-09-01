@@ -43,30 +43,48 @@ struct f_event_t {
 };
 
 BPF_PERF_OUTPUT(f_events);
-BPF_HASH(blk_start_ts, u32, u64);   // pid → block I/O start timestamp (ns)
 
-// Record block I/O start time
+// Block I/O latency, attributed to the ISSUING task.
+//
+// The start timestamp is keyed by the struct request pointer and stores the
+// issuer's pid/tgid/comm, because blk_account_io_done() runs in the
+// completion (IRQ/softirq) context where bpf_get_current_*() describes
+// whichever task happened to be interrupted — not the task that issued the
+// I/O.  (An earlier revision keyed by the *current* pid on both sides and so
+// attributed latencies to random threads; fixed 2026-09-01.)
+struct blk_start_t {
+    u64  ts;
+    u32  pid;
+    u32  tgid;
+    char comm[TASK_COMM_LEN];
+};
+BPF_HASH(blk_start, u64, struct blk_start_t);   // (u64)req → issuer + start ts
+
 int trace_blk_start(struct pt_regs *ctx, struct request *req) {
-    u32 pid = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
-    u64 ts  = bpf_ktime_get_ns();
-    blk_start_ts.update(&pid, &ts);
+    struct blk_start_t s = {};
+    u64 id  = bpf_get_current_pid_tgid();
+    s.ts    = bpf_ktime_get_ns();
+    s.pid   = id & 0xFFFFFFFF;
+    s.tgid  = id >> 32;
+    bpf_get_current_comm(&s.comm, sizeof(s.comm));
+    u64 key = (u64)req;
+    blk_start.update(&key, &s);
     return 0;
 }
 
-// On block I/O completion: compute latency and emit event
 int trace_blk_done(struct pt_regs *ctx, struct request *req) {
-    u32 pid   = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
-    u64 *start = blk_start_ts.lookup(&pid);
-    if (!start) return 0;
-    u64 delta_ns = bpf_ktime_get_ns() - *start;
-    blk_start_ts.delete(&pid);
+    u64 key = (u64)req;
+    struct blk_start_t *s = blk_start.lookup(&key);
+    if (!s) return 0;
+    u64 delta_ns = bpf_ktime_get_ns() - s->ts;
 
     struct f_event_t e = {};
-    e.pid        = pid;
-    e.tgid       = bpf_get_current_pid_tgid() >> 32;
+    e.pid        = s->pid;
+    e.tgid       = s->tgid;
     e.type       = 0;
     e.latency_ns = delta_ns;
-    bpf_get_current_comm(&e.comm, sizeof(e.comm));
+    bpf_probe_read_kernel(&e.comm, sizeof(e.comm), s->comm);
+    blk_start.delete(&key);
     f_events.perf_submit(ctx, &e, sizeof(e));
     return 0;
 }

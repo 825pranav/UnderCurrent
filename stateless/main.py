@@ -72,7 +72,7 @@ def _simulate_events(store: StateStore, stop_event: threading.Event, rate: float
 def _real_events(store: StateStore, stop_event: threading.Event):
     """Capture live kernel events via eBPF and feed the StateStore (root required)."""
     try:
-        from event_listener import EventListener, _DOCKER_COMM_MAP
+        from event_listener import EventListener, _DOCKER_COMM_MAP, _resolve_container
     except ImportError as exc:
         print(f"{_RED}[main-s] ERROR: cannot import event_listener — {exc}{_RESET}")
         print(f"{_YELLOW}[main-s] Install bcc and run as root, or drop --real.{_RESET}")
@@ -87,7 +87,7 @@ def _real_events(store: StateStore, stop_event: threading.Event):
         def handle_event(self, cpu, data, size):
             raw  = self.b["events"].event(data)
             comm = raw.comm.decode("utf-8", errors="replace").rstrip("\x00")
-            container = _DOCKER_COMM_MAP.get(comm)
+            container = _resolve_container(comm)
             if container is None:
                 return  # not a Docker container process — discard
             record = {

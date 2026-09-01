@@ -242,3 +242,114 @@ Results file: `stateful/ablation_results.json` (gitignored, reproducible via `py
 - eBPF probe overhead (pidstat with/without --real — not measured; deprioritised Day 5)
 - End-to-end MTTR including eBPF detection latency (requires real fault injection)
 - MTTR for fault types other than blk_io_latency
+
+---
+
+## MTTR Campaign — 2026-09-01 (real flush, fixed WASM gate, naive baseline)
+
+Source: `run_episodes.py --container <c> --episodes 30 --interval 5 --timeout 120 --cooldown 5 [--controller naive]`
+Definition: wall time from fault injection (8 × blk_io_latency events at 50–54 ms injected directly into StatefulStateStore) to `checkpoint_and_restart` completion (CRIU checkpoint → restore fails on the documented containerd bug → docker restart).
+Fault injection method: synthetic (StateStore injection), NOT eBPF.
+
+Differences from the Day-2/Day-3 runs above:
+- `flush_io_queue` is now a real synchronous durable flush (`CHECKPOINT` / `SAVE` / `FLUSH TABLES; FLUSH LOGS` via docker exec) — see `evaluation/results/flush_verification.json`.
+- WASM sandbox gates on `fsm_state_at_dispatch` (commit efc2fc0). Between 2026-06-20 and this fix every live C&R was WASM-blocked; a first 90-episode run that day reported 10.08 s because it timed a blocked no-op. Those runs are discarded.
+- **Naive baseline** (`--controller naive`): dispatches `checkpoint_and_restart()` directly on the first reconcile cycle that sees any fault event — no score, no FSM, no flush. It bypasses `execute()` because the policy gate would otherwise block it. This is a naive local controller, not a Kubernetes liveness policy.
+- Summaries: `results/mttr_2026-09-01/mttr_<c>[_naive].json` (the `scripts/` copies are gitignored).
+
+### UnderCurrent — postgres
+
+Raw MTTR values (s): 11.13, 10.94, 10.95, 10.93, 10.91, 10.89, 10.91, 10.91, 10.86, 10.98, 10.96, 10.94, 10.94, 10.93, 10.90, 10.85, 11.09, 10.90, 10.98, 10.94, 10.97, 10.98, 10.97, 10.94, 10.95, 10.97, 10.86, 10.94, 10.95, 10.99
+
+| Stat | Value |
+|------|-------|
+| n | 30 |
+| recovered | 30 / 30 |
+| timed out | 0 |
+| mean | 10.95 s |
+| stddev | 0.06 s |
+| min | 10.85 s |
+| max | 11.13 s |
+| cycles to C&R | always 2 |
+| actions | flush_io_queue → checkpoint_and_restart |
+
+### UnderCurrent — redis
+
+Raw MTTR values (s): 10.44, 10.41, 10.42, 10.40, 10.39, 10.45, 10.39, 10.43, 10.47, 10.47, 10.44, 10.43, 10.42, 10.51, 10.47, 10.45, 10.43, 10.42, 10.44, 10.45, 10.42, 10.41, 10.40, 10.41, 10.44, 10.44, 10.43, 10.40, 10.47, 10.43
+
+| Stat | Value |
+|------|-------|
+| n | 30 |
+| recovered | 30 / 30 |
+| timed out | 0 |
+| mean | 10.43 s |
+| stddev | 0.03 s |
+| min | 10.39 s |
+| max | 10.51 s |
+| cycles to C&R | always 2 |
+| actions | flush_io_queue → checkpoint_and_restart |
+
+### UnderCurrent — mysql
+
+Raw MTTR values (s): 11.71, 11.76, 11.77, 11.64, 11.67, 11.75, 11.68, 11.55, 11.53, 11.49, 11.61, 11.72, 11.58, 11.64, 11.57, 11.44, 11.52, 11.50, 11.49, 11.86, 11.85, 12.00, 11.92, 11.75, 11.73, 11.57, 11.54, 11.63, 11.56, 11.66
+
+| Stat | Value |
+|------|-------|
+| n | 30 |
+| recovered | 30 / 30 |
+| timed out | 0 |
+| mean | 11.66 s |
+| stddev | 0.13 s |
+| min | 11.44 s |
+| max | 12.00 s |
+| cycles to C&R | always 2 |
+| actions | flush_io_queue → checkpoint_and_restart |
+
+### Naive — postgres
+
+Raw MTTR values (s): 6.03, 5.87, 5.80, 5.79, 5.86, 5.79, 5.80, 5.77, 5.82, 5.73, 5.81, 5.79, 5.77, 5.84, 5.78, 5.77, 5.76, 5.76, 5.83, 5.78, 5.76, 5.78, 5.82, 5.80, 5.84, 5.82, 5.80, 5.79, 5.77, 5.81
+
+| Stat | Value |
+|------|-------|
+| n | 30 |
+| recovered | 30 / 30 |
+| timed out | 0 |
+| mean | 5.80 s |
+| stddev | 0.05 s |
+| min | 5.73 s |
+| max | 6.03 s |
+| cycles to C&R | always 1 |
+| actions | checkpoint_and_restart |
+
+### Naive — redis
+
+Raw MTTR values (s): 5.35, 5.32, 5.33, 5.34, 5.34, 5.35, 5.35, 5.34, 5.39, 5.33, 5.36, 5.38, 5.39, 5.38, 5.35, 5.36, 5.37, 5.36, 5.34, 5.38, 5.33, 5.33, 5.36, 5.36, 5.34, 5.31, 5.35, 5.36, 5.38, 5.37
+
+| Stat | Value |
+|------|-------|
+| n | 30 |
+| recovered | 30 / 30 |
+| timed out | 0 |
+| mean | 5.35 s |
+| stddev | 0.02 s |
+| min | 5.31 s |
+| max | 5.39 s |
+| cycles to C&R | always 1 |
+| actions | checkpoint_and_restart |
+
+### Naive — mysql
+
+Raw MTTR values (s): 6.81, 6.66, 6.68, 6.62, 6.52, 6.47, 6.49, 6.54, 6.51, 6.73, 6.50, 6.53, 6.59, 6.55, 6.50, 6.44, 6.46, 6.59, 6.82, 6.49, 6.47, 6.51, 6.60, 6.47, 6.47, 6.51, 6.40, 6.43, 6.48, 6.44
+
+| Stat | Value |
+|------|-------|
+| n | 30 |
+| recovered | 30 / 30 |
+| timed out | 0 |
+| mean | 6.54 s |
+| stddev | 0.10 s |
+| min | 6.40 s |
+| max | 6.82 s |
+| cycles to C&R | always 1 |
+| actions | checkpoint_and_restart |
+

@@ -137,14 +137,21 @@ def test_workload(workload: str, spec: dict) -> dict:
 
 
 def main():
-    results = {}
-    for workload, spec in CONTAINERS.items():
-        results[workload] = test_workload(workload, spec)
+    # Optional CLI args restrict which workloads run (e.g. `postgres redis`
+    # to re-test only those two after a CRIU rebuild, skipping mysql since
+    # its podman-path failure is a missing --file-locks CLI flag, unrelated
+    # to CRIU version). No args = all three, same as before.
+    workloads = sys.argv[1:] or list(CONTAINERS.keys())
+    out_path = os.environ.get("RESULTS_PATH_OVERRIDE", RESULTS_PATH)
 
-    with open(RESULTS_PATH, "w") as f:
+    results = {}
+    for workload in workloads:
+        results[workload] = test_workload(workload, CONTAINERS[workload])
+
+    with open(out_path, "w") as f:
         json.dump(results, f, indent=2)
 
-    print(f"\n{'='*60}\n[podman-exp] results written to {RESULTS_PATH}")
+    print(f"\n{'='*60}\n[podman-exp] results written to {out_path}")
     print(json.dumps(results, indent=2))
 
 

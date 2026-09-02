@@ -49,9 +49,44 @@ see `data/phase3/metrics.json` (`fsm_state_distribution_stateful_real`) (Audited
 kernel signals observed: F = blk_io_latency_high, blk_io_latency_normal,
 vfs_write_error (no read errors, by design of the errno filter); S =
 process_exit only (as in April; tcp_connect and restart branch still absent
-from the corpus — the existing Limitation stands). M6 numerator = 314 FSM
-deferrals (C&R downgraded to flush from Degraded), M2 numerator = 319 C&R;
-M2 ≈ M6 remains structural, not empirical.
+from the corpus — the existing Limitation stands).
+
+**M2 ≠ M6 in this corpus — the paper's "structural equality" paragraph must
+be rewritten, not renumbered.** M6 counts deferral cycles (score ≥ τ_repair
+while Degraded → C&R downgraded to flush); M2 counts C&R cycles (real FSM in
+Audited dispatches C&R, memoryless shadow would flush). Exact decomposition:
+
+| | count |
+|---|---|
+| deferral immediately followed by C&R (the paired case the paper describes) | 294 |
+| deferral NOT followed by C&R (fault cleared before the next cycle) | 20 |
+| C&R NOT preceded by a deferral (FSM was already Audited from an earlier slot) | 25 |
+| M6 numerator = 294 + 20 | 314 |
+| M2 numerator = 294 + 25 | 319 |
+
+Both unpaired kinds have one cause: **Audited has no exit** (§6). A slot that
+ends right after a deferral leaves the FSM in Audited; the next slot's first
+score ≥ 0.80 then fires C&R with no deferral in front of it. April (one
+container, sporadic faults) always completed the sequence to Recovered and
+healed, so the pairing was exact there. Correct paper reading: the equality
+is structural *per fault episode that starts from Healthy*; repeated faults
+against a stale audit break it. Adding an Audited→Healthy transition on
+fault clearance would restore it (author's decision).
+
+**Ablation "314 premature C&R" = the 314 deferral cycles by construction**
+(no-FSM fires wherever score ≥ 0.80 regardless of state; those are exactly
+the cycles the real controller deferred). 319 = actual C&R count.
+319 − 314 = 25 − 20.
+
+**WASM blocked nothing in this corpus** (wasm_blocked = 0 on every record):
+reconcile's FSM gate defers every ineligible C&R one cycle earlier, so the
+sandbox never sees one. It was active throughout, and the June→September
+gate bug (§4) proves it is a real enforcement point; but M6 counts FSM
+deferrals, not WASM blocks — say so; footnote (b) goes.
+
+**M1 / M4 / M5 are exact, not rounded:** 0 cross-track-contaminated records
+of 27,592; 2,944 active real decisions, all 2,944 `reversible`; 0 records
+with a missing/empty required explanation field.
 
 ## 2. MTTR — final (committed b34085f, `results/measurements.md`)
 
@@ -129,9 +164,10 @@ it was reverted from the tree at the author's request.
    about every 10 s (flush → audit → C&R → restart → still faulting). April:
    44 C&R in 20 h; this corpus: hundreds. Reviewers will ask about backoff.
 2. **Audited has no exit.** Table I has no transition out of Audited when
-   the fault clears (only approve_repair or degrade), so postgres/mysql sit in
-   Audited for most quiet time and a later fault goes straight to C&R with a
-   stale audit. Left as designed; author's call.
+   the fault clears (only approve_repair or degrade), so containers sit in
+   Audited through quiet time and a later fault goes straight to C&R with a
+   stale audit. This is what breaks the M2 = M6 pairing (§1: 20 + 25
+   unpaired cycles). Left as designed; author's call.
 
 ## 7. Still open
 
@@ -162,3 +198,17 @@ it was reverted from the tree at the author's request.
   alive; everything else in the campaign runs without sudo.
 - **L.** The campaign log appends across runs; filter from the last
   `[campaign] start` line.
+
+## 9. External review (2026-09-02) vs status after this work
+
+| Review point | Status | Evidence / what remains |
+|---|---|---|
+| CRIU never succeeds | not solved; salvage argument now has evidence | flush is real → the gate provably orders a verified durable flush before every restart, CRIU or not. Paper must say it head-on. Podman demo optional. |
+| WASM barely evaluated | solved in data | whole corpus wasmtime-active, 0 fallback. Caveat: sandbox blocked nothing (FSM defers first). Drop footnote (b). |
+| No external baseline | partial | naive restart-on-signal controller on the same harness (§2). Not a prior-art tool. |
+| Scale / generalizability | partial | 4 containers actively faulted, 3× corpus, 12 slots each; still one machine, one instance each. |
+| Statistical thinness | partial | 319 divergences; 12 independent slots per container allow per-slot CIs (not yet computed). F1 framing untouched. |
+| "MTTR" mislabel | partial | M3 now spans detection → completed docker restart with a real flush; still not service readiness. Rename/qualify. |
+| "measurably necessary", safety vs security, kernel-version cites | not solved (paper) | wording. |
+| ablation.py stale path | moot | finalize passes the corpus path explicitly. |
+| new: restarts repeat every ~10 s during a persistent fault; Audited dead end | new, from this corpus | §6. |

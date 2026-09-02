@@ -229,6 +229,28 @@ def flush_io_queue(container: str) -> dict:
     return result
 
 
+def _purge_ctrd_staging(since: float) -> int:
+    """
+    Remove containerd's checkpoint staging dirs left behind by a failed
+    `docker start --checkpoint`.  Docker stages the image under
+    /tmp/ctrd-checkpoint<random>/ (~69 MB for postgres) and does not remove
+    it when the restore fails; the 2026-09-01 8 h corpus run leaked 29 GB
+    this way (~420 dirs).  Only dirs modified at/after `since` (this
+    restore attempt) are removed.  Needs root — a PermissionError (e.g. the
+    MTTR episode runner as an ordinary user) is ignored.
+    """
+    import glob, os, shutil
+    n = 0
+    for d in glob.glob("/tmp/ctrd-checkpoint*"):
+        try:
+            if os.path.isdir(d) and os.stat(d).st_mtime >= since - 1:
+                shutil.rmtree(d, ignore_errors=False)
+                n += 1
+        except (PermissionError, FileNotFoundError, OSError):
+            pass
+    return n
+
+
 def checkpoint_and_restart(container: str) -> dict:
     """
     Checkpoint the container via CRIU (docker checkpoint create), then restore
@@ -265,6 +287,7 @@ def checkpoint_and_restart(container: str) -> dict:
 
     if ckpt_ok:
         # ── Phase 2: restore from checkpoint ──────────────────────────────────
+        restore_t0 = time.time()
         try:
             restore = subprocess.run(
                 ["docker", "start", "--checkpoint", ckpt_name, container],
@@ -318,6 +341,7 @@ def checkpoint_and_restart(container: str) -> dict:
         # so repeated C&R cycles do not accumulate images under /var/lib/docker.
         subprocess.run(["docker", "checkpoint", "rm", container, ckpt_name],
                        capture_output=True, text=True, timeout=30)
+        _purge_ctrd_staging(restore_t0)
 
         result = _result(
             container, "checkpoint_and_restart", fallback_ok,

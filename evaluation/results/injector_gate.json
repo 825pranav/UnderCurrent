@@ -10,7 +10,6 @@
     ],
     "kernel_signals": [
       "blk_io_latency_normal",
-      "vfs_read_error",
       "vfs_write_error"
     ],
     "pass": true
@@ -18,21 +17,21 @@
   "redis": {
     "track": "F",
     "records_real": 14,
-    "max_score": 0.5867,
+    "max_score": 0.85,
     "actions": [
+      "checkpoint_and_restart",
       "flush_io_queue"
     ],
     "kernel_signals": [
       "blk_io_latency_high",
-      "blk_io_latency_normal",
-      "vfs_read_error"
+      "blk_io_latency_normal"
     ],
     "pass": true
   },
   "mysql": {
     "track": "F",
-    "records_real": 12,
-    "max_score": 0.88,
+    "records_real": 13,
+    "max_score": 0.85,
     "actions": [
       "checkpoint_and_restart",
       "flush_io_queue",
@@ -40,14 +39,13 @@
     ],
     "kernel_signals": [
       "blk_io_latency_high",
-      "blk_io_latency_normal",
-      "vfs_write_error"
+      "blk_io_latency_normal"
     ],
     "pass": true
   },
   "nginx": {
     "track": "S",
-    "records_real": 17,
+    "records_real": 16,
     "max_score": 0.95,
     "actions": [
       "reschedule"
@@ -59,7 +57,7 @@
   },
   "_wasm_fallback_lines": 0,
   "_meta": {
-    "date": "2026-09-01 21:21:19 UTC",
+    "date": "2026-09-02 08:14:05 UTC",
     "inject_s": 60
   }
 }

@@ -21,6 +21,9 @@ ap.add_argument("--out", default="data/phase3")
 ap.add_argument("--cutoff", default=None, help="local time 'YYYY-MM-DD HH:MM:SS'; default = campaign done line")
 ap.add_argument("--campaign-log", default="/tmp/uc_campaign.log")
 ap.add_argument("--dry-run", default=None, help="write into this dir instead of --out; do not archive")
+ap.add_argument("--windows", default=None,
+                help="keep only records inside these local-time windows, e.g. "
+                     "'2026-09-02 08:08:40-2026-09-02 09:38:18,2026-09-02 13:26:20-2026-09-02 14:26:30'")
 args = ap.parse_args()
 OUT = args.dry_run or args.out
 
@@ -34,6 +37,17 @@ else:
     iso = re.search(r"done (\S+)", done[-1]).group(1)
     cutoff = time.mktime(time.strptime(iso[:19], "%Y-%m-%dT%H:%M:%S"))
 print(f"[finalize] cutoff = {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(cutoff))}")
+windows = []
+if args.windows:
+    for w in args.windows.split(","):
+        a, b = w.split("-")[0:3:2] if w.count("-") == 5 else (None, None)
+        # dates contain '-', so split on the '-' between the two timestamps explicitly
+        a, b = w[:19], w[20:39]
+        windows.append((time.mktime(time.strptime(a, "%Y-%m-%d %H:%M:%S")), time.mktime(time.strptime(b, "%Y-%m-%d %H:%M:%S"))))
+    print("[finalize] windows:", [(time.strftime('%H:%M:%S', time.localtime(a)), time.strftime('%H:%M:%S', time.localtime(b))) for a, b in windows])
+def keep(t):
+    if t > cutoff: return False
+    return (not windows) or any(a <= t <= b for a, b in windows)
 
 # ── 2. snapshot ──────────────────────────────────────────────────────────────
 if not args.dry_run and os.path.isdir(OUT) and os.listdir(OUT):
@@ -52,7 +66,7 @@ for src, name in FILES.items():
         for l in f:
             n += 1; r = json.loads(l)
             t = next((r[x] for x in TS if x in r), 0)
-            if t <= cutoff: o.write(l); k += 1
+            if keep(t): o.write(l); k += 1
     print(f"[finalize] {src}: {n} → {k} kept")
 
 # ── 3. metrics ───────────────────────────────────────────────────────────────
@@ -91,7 +105,9 @@ def stats(d):
         "sha256": sha,
     }
 new = stats(OUT); old = stats("data/phase2")
-summary = {"cutoff": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(cutoff)), "corpus": new, "metrics": metrics, "ablation": abl_res}
+summary = {"cutoff": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(cutoff)),
+           "windows": [[time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(a)), time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(b))] for a, b in windows],
+           "corpus": new, "metrics": metrics, "ablation": abl_res}
 json.dump(summary, open(os.path.join(OUT, "corpus_summary.json"), "w"), indent=2)
 
 def m2(mt): return mt["divergence_rate"]

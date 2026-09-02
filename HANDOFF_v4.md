@@ -171,12 +171,12 @@ it was reverted from the tree at the author's request.
 
 ## 7. Still open
 
-- **Paper edits** — author. Abstract, §VII-A (fault methods, 4 containers,
+- **Paper edits** — DONE 2026-09-02 at the author's request (commit after c80d244): all numbers, naive baseline figure, M2/M6 paragraph, footnote b, Limitations additions, six pages under tectonic+TeX Gyre Termes. Verify the page count with a real pdflatex (Times) before submission; the Future Work figure was removed to fit. Previously: Abstract, §VII-A (fault methods, 4 containers,
   campaign framing), §VII-B numbers, Table II + footnotes (drop footnote b:
   WASM was active), §VII-C MTTR + naive baseline, Table III, Limitations
   (remove "corpus predates wasmtime"; add §6 items), Intro flush claim is
   now true as written.
-- **LaTeX** — three pre-existing errors block any real compile: lines 96 and
+- **LaTeX** — fixed in the same commit (were: three pre-existing errors blocking any real compile: lines 96 and
   251 `>=Stealth[…]` → `-{Stealth[…]}`; line 433 `draw color=black` →
   `error bar style={draw=black}`. `~/.local/bin/tectonic -X compile
   paper/uc.tex` then builds 7 pages (XeTeX; Times metrics differ from

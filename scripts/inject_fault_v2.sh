@@ -47,7 +47,7 @@ END=$(( $(date +%s) + D ))
 MIN_FREE_GB="${MIN_FREE_GB:-8}"
 HOG_FILE="${HOG_FILE:-/var/tmp/uc_iohog}"  # host-side direct-I/O hog (mysql fault)
 HOG_MB="${HOG_MB:-1024}"                    # rewritten in place; never grows past this
-MYSQL_MAX_ROWS="${MYSQL_MAX_ROWS:-3000}"    # 3000 × 6 KB ≈ 18 MB (+ binlog copy) ceiling
+MYSQL_MAX_ROWS="${MYSQL_MAX_ROWS:-1500}"    # 1500 × 60 KB ≈ 90 MB live ceiling (binlog reset on exit)
 REDIS_KEYS="${REDIS_KEYS:-20000}"           # 20000 × 4 KB ≈ 80 MB RDB ceiling
 
 log(){ echo "[inject-v2] $(date +%H:%M:%S) $*"; }
@@ -128,15 +128,19 @@ case "$C" in
     rows=0
     while [ "$(date +%s)" -lt "$END" ] && [ "$rows" -lt "$MYSQL_MAX_ROWS" ]; do
       check_disk || break
-      # 50 rows per statement, each an autocommitted 6 KB write from mysqld
-      # (fsync per commit); the hog supplies the latency, not the volume.
+      # 50 rows per statement, each an autocommitted 60 KB write from mysqld.
+      # VOLUME MATTERS: with 6 KB rows (tried 22:26–05:24 on 2026-09-01/02)
+      # mysqld's bios never exceeded ~5 ms even under the hog; with 60 KB rows
+      # the same slot gives 140k+ bios, hundreds ≥ 10 ms, score 0.85.
       timeout 60 docker exec mysql mysql -uroot -ppass uc_load -e \
-        "INSERT INTO t (p) SELECT REPEAT('x',6000) FROM information_schema.columns LIMIT 50;" >/dev/null 2>&1
+        "INSERT INTO t (p) SELECT REPEAT('x',60000) FROM information_schema.columns LIMIT 50;" >/dev/null 2>&1
       rows=$((rows + 50))
-      sleep 0.5
+      # recycle: once at the cap, truncate and keep going until END
+      if [ "$rows" -ge "$MYSQL_MAX_ROWS" ] && [ "$(date +%s)" -lt "$END" ]; then
+        docker exec mysql mysql -uroot -ppass -e "TRUNCATE uc_load.t;" >/dev/null 2>&1
+        rows=0
+      fi
     done
-    # keep the hog (and mysqld's background flushing) going until END even if the row cap hit early
-    while [ "$(date +%s)" -lt "$END" ]; do sleep 1; done
     ;;
 
   nginx)

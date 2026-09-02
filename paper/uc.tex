@@ -85,7 +85,7 @@ The dual-track control plane we describe here tackles all three. Our contributio
 
 \subsection{Overview}
 
-Fig.~\ref{fig:arch} shows the full pipeline. Both tracks follow the same path (kernel probes $\rightarrow$ perf buffer $\rightarrow$ comm-filtered listener $\rightarrow$ StateStore $\rightarrow$ scorer $\rightarrow$ DAG $\rightarrow$ executor); Type~F inserts an FSM and WASM policy layer before the executor. Every reconcile cycle runs twice: real path (live FSM, dispatches) and shadow path (fresh FSM, suppressed); disagreements are logged to a divergence log. eBPF probes are kernel-global; attribution matches each event's \texttt{comm} field against a static allow-list---unmatched events are dropped before the StateStore.
+Fig.~\ref{fig:arch} shows the pipeline. Both tracks follow the same path (kernel probes $\rightarrow$ perf buffer $\rightarrow$ comm-filtered listener $\rightarrow$ StateStore $\rightarrow$ scorer $\rightarrow$ DAG $\rightarrow$ executor); Type~F inserts an FSM and a WASM policy layer before the executor. Every reconcile cycle runs twice, on the live FSM (dispatched) and on a fresh one (suppressed), and disagreements go to a divergence log. Probes are kernel-global; each event's \texttt{comm} is matched against a static allow-list and unmatched events are dropped before the StateStore.
 
 \begin{figure}[!t]
 \centering
@@ -154,7 +154,7 @@ Fig.~\ref{fig:arch} shows the full pipeline. Both tracks follow the same path (k
 
 \subsection{Kernel Probes and Confidence Scoring}
 
-Type~S attaches a tracepoint on \texttt{sched\_process\_exit} and a kprobe on \texttt{tcp\_connect} capturing all connection attempts; elevated connection activity in the window is treated as a proxy for connectivity stress. Per-signal scores for container $c$ and window $W$:
+Type~S attaches a tracepoint on \texttt{sched\_process\_exit} and a kprobe on \texttt{tcp\_connect}; elevated connection activity in the window serves as a proxy for connectivity stress. Per-signal scores for container $c$ and window $W$:
 
 \begin{equation}
 s_{\mathrm{pe}}(c, W) = \sigma_{\mathrm{pe}} \cdot \mathbb{1}\!\left[n_{\mathrm{pe}}(c, W) > 0\right]
@@ -255,7 +255,7 @@ Recovered & \texttt{degrade}         & Degraded  & $\rho_F \geq \tau_{\mathrm{fl
              minimum width=1.65cm, minimum height=0.50cm,
              align=center, font=\scriptsize\bfseries, fill=white},
   lbl/.style={font=\tiny, fill=white, inner sep=1pt, sloped},
-  scale=0.86, transform shape,
+  scale=0.80, transform shape,
 ]
 % Pentagon layout: radius=2.15, clockwise from 90 deg
 % Angles: Healthy=90, Degraded=18, Audited=306, Repairing=234, Recovered=162
@@ -394,7 +394,7 @@ $M_1 = 0.0000$, $M_5 = 1.0000$: no trace carried cross-track signals, and every 
 
 Both tracks achieve $M_4 = 1.0000$: of 2,944 active real decisions (2,274 Type-S \texttt{reschedule}; 351 Type-F \texttt{flush} and 319 C\&R), all carry \texttt{reversibility="reversible"}. Neither \texttt{volume\_delete} nor \texttt{escalate} was dispatched; \texttt{escalate}'s conditional tag would lower M4 if triggered.
 
-$M_2^\mathrm{F} = 0.0474$ (319 of 6,735 real stateful cycles) and $M_6^\mathrm{F} = 0.0466$ (314 of 6,735); every divergence record carries the pair \texttt{checkpoint\_and\_restart}$\rightarrow$\texttt{flush\_io\_queue}. On the stateless track both paths run the same memoryless DAG, so $M_2^\mathrm{S} = 0.0000$ and $M_2^\mathrm{overall} = 0.0231$. The two stateful rates count the two halves of one sequence: a deferral cycle, where the real FSM in Degraded downgrades C\&R to \texttt{flush} and the shadow does the same (M6, no divergence), then an approval cycle, where the real FSM in Audited dispatches C\&R while the shadow still flushes (M2). In 294 cases the halves are adjacent, as they always were in the single-container corpus. Twenty deferrals had no following C\&R because the fault cleared before the next cycle and left the FSM in Audited; 25 dispatches had no preceding deferral because a later fault arrived against that stale Audited state, which Table~\ref{tab:fsm} never exits on fault clearance. The pairing is structural for one episode from Healthy; repeated faults against a stale audit break it (\S\ref{sec:limitations}).
+$M_2^\mathrm{F} = 0.0474$ (319 of 6,735 real stateful cycles) and $M_6^\mathrm{F} = 0.0466$ (314 of 6,735); every divergence record carries the pair \texttt{checkpoint\_and\_restart}$\rightarrow$\texttt{flush\_io\_queue}. On the stateless track both paths run the same memoryless DAG, so $M_2^\mathrm{S} = 0.0000$ and $M_2^\mathrm{overall} = 0.0231$. The two stateful rates count the two halves of one sequence. In a deferral cycle the real FSM in Degraded downgrades C\&R to \texttt{flush}, as the shadow does (M6, no divergence); in the next cycle the real FSM in Audited dispatches C\&R while the shadow still flushes (M2). The halves are adjacent in 294 cases, as they always were in the single-container corpus. Twenty deferrals had no following C\&R because the fault cleared within a cycle and left the FSM in Audited, and 25 dispatches had no preceding deferral because a later fault met that stale Audited state, which Table~\ref{tab:fsm} never exits on fault clearance. The pairing is structural for one episode from Healthy; repeated faults against a stale audit break it (\S\ref{sec:limitations}).
 
 \subsection{Fault-Injection MTTR Campaign}
 \label{sec:m3}
@@ -424,7 +424,7 @@ We ran the same harness against a naive restart-on-signal controller, which disp
   ytick={0,2,4,6,8,10,12},
   ymajorgrids=true, grid style={dashed,gray!35},
   enlarge x limits=0.3,
-  width=0.90\columnwidth, height=4.0cm,
+  width=0.90\columnwidth, height=3.7cm,
   every node near coord/.append style={font=\tiny, text=black,
     /pgf/number format/fixed, /pgf/number format/precision=2,
     /pgf/number format/zerofill=true, yshift=4pt},
@@ -508,7 +508,7 @@ No-confidence (binary)  & 0\;\;\;(0\%) & 0 & 319$^{c}$ \\
 
 \textbf{Threshold-only (shadow path).} A stateless policy equivalent to resetting the FSM each cycle can never reach Audited and misses all 319 legitimate C\&R opportunities. This is what the shadow path computes: $M_2^\mathrm{F} = 0.0474$ is how often that memoryless computation disagrees with the real path.
 
-\textbf{No-confidence.} Binary scoring maps any above-threshold signal combination to a fixed score of 0.75 (score $\in \{0, 0.75\}$); since $0.75 < \tau_{\mathrm{repair}} = 0.80$, this yields 0 C\&R dispatches---every fault cycle is downgraded before the FSM is consulted. Graduated confidence scoring is a prerequisite for C\&R to be reachable.
+\textbf{No-confidence.} Binary scoring maps any above-threshold signal to a fixed 0.75. Since $0.75 < \tau_{\mathrm{repair}} = 0.80$, no C\&R is ever dispatched; every fault cycle is downgraded before the FSM is consulted. Graduated scoring is a prerequisite for C\&R to be reachable at all.
 
 With the full FSM, the controller dispatches exactly 319 C\&Rs, all from Audited state, none premature and none missed. The no-FSM variant fires too early; the memoryless variant cannot fire at all; only the full FSM gets both right, accumulating evidence across cycles before authorising the irreversible action.
 
@@ -516,7 +516,7 @@ With the full FSM, the controller dispatches exactly 319 C\&Rs, all from Audited
 \subsection{Runtime Overhead}
 \label{sec:overhead}
 
-Two overhead sources are benchmarked: WASM \texttt{policy\_check()} averages 27\,$\mu$s (p99 50\,$\mu$s, $N = 10{,}000$ post-warmup)---$230{\times}$ slower than a pure-Python equivalent (${\approx}0.12\,\mu$s), but only 0.00054\,\% of the 5\,s reconcile interval. Dual-path shadow execution adds 8\,$\mu$s over single-path (14.94 vs.\ 6.89\,$\mu$s)---117\,\% proportionally, negligible at the 5\,s cadence.
+Two overhead sources are benchmarked. WASM \texttt{policy\_check()} averages 27\,$\mu$s (p99 50\,$\mu$s, $N = 10{,}000$ post-warmup), about $230{\times}$ a pure-Python equivalent (${\approx}0.12\,\mu$s) yet only 0.00054\,\% of the 5\,s reconcile interval. Dual-path shadow execution adds 8\,$\mu$s over single-path (14.94 vs.\ 6.89\,$\mu$s), 117\,\% proportionally and negligible at this cadence.
 
 \section{Discussion}
 \label{sec:discussion}
@@ -536,11 +536,11 @@ Two overhead sources are benchmarked: WASM \texttt{policy\_check()} averages 27\
 
 \textbf{Fault injection.} M3 rests on $N = 90$ synthetic episodes whose events are inserted directly into the \texttt{StatefulStateStore}; the corpus faults, by contrast, pass through the eBPF probe path. Linking M3 to that path end to end remains open.
 
-\textbf{Corpus coverage.} All active stateless decisions fell into the \texttt{reschedule} branch; the \texttt{restart} branch and \texttt{tcp\_connect} signal path are implemented and covered by internal self-tests but do not appear in the committed trace corpus, which reflects the specific fault scenarios evaluated.
+\textbf{Corpus coverage.} Every active stateless decision was a \texttt{reschedule}; the \texttt{restart} branch and the \texttt{tcp\_connect} path are implemented and self-tested but absent from the corpus, which reflects the faults evaluated.
 
 \textbf{WASM sandbox.} Validated (\texttt{wasmtime}~45.0.0): all 20 isolated policy cases correct, overhead 27\,$\mu$s mean (50\,$\mu$s p99). The sandbox was active for the whole corpus but rejected no live dispatch, since the FSM gate defers every ineligible C\&R first; M6 therefore counts FSM deferrals. It is not a no-op: a gate bug that passed the post-transition state to the sandbox silently blocked every live C\&R for two months before this corpus was collected, which is how we know it is load-bearing.
 
-\textbf{Repeated dispatch and the Audited state.} Within one 60\,s fault, C\&R fires about every 10\,s rather than once, because the workload is still faulting after each restart; no backoff suppresses repeated dispatch against an unresolved fault. Table~\ref{tab:fsm} also has no transition out of Audited when a fault clears, so a container can sit in Audited through a quiet interval and, on the next fault, dispatch C\&R against a stale audit. This is the cause of the 20 unpaired deferrals and 25 unpaired dispatches in \S\ref{sec:eval}. An Audited$\rightarrow$Healthy transition on fault clearance would restore the exact pairing; we report the behaviour rather than re-architect against it.
+\textbf{Repeated dispatch and the Audited state.} Within one 60\,s fault, C\&R fires about every 10\,s rather than once, since the workload is still faulting after each restart and no backoff suppresses repeated dispatch. Table~\ref{tab:fsm} also has no exit from Audited when a fault clears, so a container can wait there through a quiet interval and, on the next fault, dispatch C\&R against a stale audit. That is the source of the 20 unpaired deferrals and 25 unpaired dispatches in \S\ref{sec:eval}. An Audited$\rightarrow$Healthy transition on fault clearance would restore the exact pairing; we report the behaviour rather than re-architect against it.
 
 \subsection{Future Work}
 

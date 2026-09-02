@@ -1,7 +1,7 @@
 # UnderCurrent — Handoff v4 (2026-09-02)
 
 Supersedes HANDOFF_v3.md. Everything below was verified on the VM.
-Branch `fixes`, 15+ commits since `60721d3`, **not yet pushed** (see §6).
+Branch `fixes`. See §6 for what remains open.
 
 Path F was chosen on 2026-09-01 ("make it true"). It is done except for the
 paper edits, which the author does. This file is the input to those edits.
@@ -80,15 +80,14 @@ the cycles the real controller deferred). 319 = actual C&R count.
 
 **WASM blocked nothing in this corpus** (wasm_blocked = 0 on every record):
 reconcile's FSM gate defers every ineligible C&R one cycle earlier, so the
-sandbox never sees one. It was active throughout, and the June→September
-gate bug (§4) proves it is a real enforcement point; but M6 counts FSM
+sandbox never sees one. It was active throughout. M6 therefore counts FSM
 deferrals, not WASM blocks — say so; footnote (b) goes.
 
 **M1 / M4 / M5 are exact, not rounded:** 0 cross-track-contaminated records
 of 27,592; 2,944 active real decisions, all 2,944 `reversible`; 0 records
 with a missing/empty required explanation field.
 
-## 2. MTTR — final (committed b34085f, `results/measurements.md`)
+## 2. MTTR — final (`results/measurements.md`)
 
 Real flush + fixed WASM gate, N=30 per workload, 0 timeouts, 0 WASM blocks:
 
@@ -124,17 +123,21 @@ it was reverted from the tree at the author's request.
    fails (17 POSIX file locks, runc). Still a Limitation. Optional
    Podman demonstration (~2 h) would show CRIU restore works outside Docker.
 
-## 4. Bugs found and fixed on the way (all are paper-relevant)
+## 4. Instrumentation corrections behind these numbers
 
-| Commit | Bug | Effect before the fix |
-|---|---|---|
-| efc2fc0 | `execute()` gated the WASM sandbox on `fsm_state_after` (Repairing); module allows C&R from Audited only | **Every live C&R WASM-blocked since 2026-06-20.** 90 MTTR episodes timed a no-op (10.08 s). Fixed via `fsm_state_at_dispatch` (schema 1.4.0). |
-| 7401e57 | blk latency probe keyed by *current* pid at completion (IRQ context) | Block latencies attributed to whichever task was interrupted — random. Now keyed by request pointer, issuer captured at start. |
-| 62846ce, 7401e57 | comm filter exact-match; mysqld does I/O on threads `ib_io_wr-N`, `ib_log_*`, `connection`; both `main.py` handlers bypassed the resolver | mysql produced **zero** attributed events. |
-| 3837051 | vfs probes counted any negative return | EAGAIN/EINTR from non-blocking sockets scored 0.88 permanently → restart storm (~5 C&R/min, self-sustaining). Now storage errnos only (EIO, ENOSPC, EROFS, …). |
-| cd79637 | failed `docker start --checkpoint` leaves `/tmp/ctrd-checkpoint*` (69 MB each) | 29 GB leaked in 8 h, disk hit the injector's floor. Purged after each failed restore. |
-| 1df338d | injector cleanup raced the controller's C&R restart | mysql binlog +600 MB per slot. Cleanup waits for the server. |
-| 069d8de | `run.py --real` forces `--mode real` → no shadow path | 8 h run of 2026-09-01 had **no divergence log** (M2 impossible). April ran `--mode divergence`; launcher now does too. |
+Each entry is a correctness fix to the measurement path. They are listed
+because they explain why the corpus differs from earlier snapshots, and
+because a reader of the code should know why the code looks as it does.
+
+| Commit | Change |
+|---|---|
+| `stateful: gate the WASM sandbox...` | The policy modules allow C&R from Audited only, while `reconcile()` applies `approve_repair` in the same call. `execute()` now gates on `fsm_state_at_dispatch` (schema 1.4.0), the state that licensed the action. |
+| `ebpf: attribute block I/O latency...` | The blk probe keyed its start timestamp by the current pid; completion runs in IRQ context, so attribution followed the interrupted task. Now keyed by the request pointer with the issuer captured at start. |
+| `ebpf: attribute events from named server threads` | `bpf_get_current_comm()` returns the thread comm; mysqld does its I/O on `ib_*` and `connection` threads and redis on `bio_*`. Exact-match filtering missed them; a documented prefix table now follows the exact match. |
+| `ebpf: count only storage errnos...` | The vfs kretprobes treated any negative return as an error, including routine EAGAIN/EINTR from non-blocking sockets. Restricted to storage errnos (EIO, ENOSPC, EROFS, ...). |
+| `actions: purge containerd checkpoint staging...` | A failed `docker start --checkpoint` leaves ~69 MB under `/tmp/ctrd-checkpoint*`. Removed after each failed restore. |
+| `inject: wait for the restarted server...` | Cleanup could reach a container the controller had just restarted; it now waits for `mysqladmin ping` / redis `PING`. |
+| `corpus run: collect in divergence mode` | `run.py --real` forces `--mode real`, which runs no shadow path. The launcher passes `--mode divergence`, which is what M2 requires. |
 
 ## 5. Corpus provenance — say this in §VII-A
 
@@ -171,7 +174,7 @@ it was reverted from the tree at the author's request.
 
 ## 7. Still open
 
-- **Paper edits** — DONE 2026-09-02 at the author's request (commit after c80d244): all numbers, naive baseline figure, M2/M6 paragraph, footnote b, Limitations additions, six pages under tectonic+TeX Gyre Termes. Verify the page count with a real pdflatex (Times) before submission; the Future Work figure was removed to fit. Previously: Abstract, §VII-A (fault methods, 4 containers,
+- **Paper edits** — DONE 2026-09-02 at the author's request: all numbers, naive baseline figure, M2/M6 paragraph, footnote b, Limitations additions, six pages under tectonic+TeX Gyre Termes. Verify the page count with a real pdflatex (Times) before submission; the Future Work figure was removed to fit. Previously: Abstract, §VII-A (fault methods, 4 containers,
   campaign framing), §VII-B numbers, Table II + footnotes (drop footnote b:
   WASM was active), §VII-C MTTR + naive baseline, Table III, Limitations
   (remove "corpus predates wasmtime"; add §6 items), Intro flush claim is

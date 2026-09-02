@@ -12,7 +12,9 @@
 \usepackage{tikz}
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
-\usetikzlibrary{arrows.meta,bending,positioning}
+\usetikzlibrary{arrows.meta,bending,positioning,patterns}
+\usepackage{iftex}
+\ifXeTeX\usepackage{fontspec}\setmainfont{texgyretermes}[Extension=.otf,UprightFont=*-regular,BoldFont=*-bold,ItalicFont=*-italic,BoldItalicFont=*-bolditalic]\fi % XeTeX only: Times-metric clone so tectonic page counts match pdflatex
 
 % Override IEEEtran's default \normalsize (10pt) affiliation font to \small (9pt).
 % At 10pt, "Dept. of Computer Science and Engineering" is ~65mm wide per block;
@@ -49,7 +51,7 @@ animeshgiri@pes.edu}
 \maketitle
 
 \begin{abstract}
-Containerized workloads mix stateful databases and stateless services whose failure semantics differ fundamentally, yet most remediation frameworks still apply a single recovery policy to both. This uniformity ignores the distinct safety requirements each workload type carries. We present a dual-track control plane that separates stateless and stateful workloads into independent eBPF-driven remediation pipelines. Stateless workloads are managed through a confidence-based decision DAG; stateful workloads incorporate a finite-state machine (FSM), shadow execution, and a WebAssembly (WASM) policy layer that enforces safe action sequencing before irreversible recovery operations. We evaluated the framework on 9,132 execution traces and 90 controlled fault-injection experiments across PostgreSQL, Redis, MySQL, and Nginx container workloads. A stateful divergence rate of 1.93\% confirms that accumulated FSM state materially changes dispatch outcomes relative to a memoryless baseline. Mean time to checkpoint dispatch ranged from 10.40 to 11.54\,s; WASM policy evaluation added 27\,$\mu$s and shadow execution 8\,$\mu$s per cycle; both are negligible within the 5\,s budget. Workload-aware control plane separation is both feasible and measurably necessary for safe autonomous remediation where stateful and stateless workloads coexist.
+Containerized workloads mix stateful databases and stateless services whose failure semantics differ fundamentally, yet most remediation frameworks still apply a single recovery policy to both. This uniformity ignores the distinct safety requirements each workload type carries. We present a dual-track control plane that separates stateless and stateful workloads into independent eBPF-driven remediation pipelines. Stateless workloads are managed through a confidence-based decision DAG; stateful workloads incorporate a finite-state machine (FSM), shadow execution, and a WebAssembly (WASM) policy layer that enforces safe action sequencing before irreversible recovery operations. We evaluated the framework on 27,592 execution traces from a controlled fault campaign against PostgreSQL, Redis, MySQL, and Nginx containers, and on 90 fault-injection episodes. A stateful divergence rate of 4.74\% confirms that accumulated FSM state changes dispatch outcomes relative to a memoryless baseline. Mean time to checkpoint dispatch ranged from 10.43 to 11.66\,s, one reconcile interval more than a naive restart-on-signal controller on the same faults; WASM policy evaluation added 27\,$\mu$s and shadow execution 8\,$\mu$s per cycle, both negligible within the 5\,s budget. Within the scale of this evaluation, workload-aware control plane separation is both feasible and measurably necessary for safe autonomous remediation where stateful and stateless workloads coexist.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -59,24 +61,24 @@ autonomic computing, eBPF, container remediation, finite state machines, shadow 
 \section{Introduction}
 \label{sec:intro}
 
-Not every container fails the same way. If an \texttt{nginx} worker crashes, you simply restart it---no harm done. But a \texttt{postgres} instance under heavy I/O is a different story entirely: it needs a flush first, then a checkpoint, in that exact order. Jump ahead or skip a step, and you risk corrupting transactions that haven't committed yet. Large-scale autonomous resource management is well-established at this point~\cite{b14}, but the frameworks available today tend to apply a single blanket policy across all containers~\cite{b1}, or they leave the decision to human operators, who cannot match the speed of continuous eBPF-level observability~\cite{b6}.
+Not every container fails the same way. An \texttt{nginx} worker that crashes can simply be restarted. A \texttt{postgres} instance under heavy I/O needs a flush first and a checkpoint second, in that order; skip or reorder a step and uncommitted transactions are at risk. Large-scale autonomous resource management is well established~\cite{b14}, but current frameworks apply one blanket policy to every container~\cite{b1} or leave the decision to operators, who cannot keep pace with continuous eBPF-level observability~\cite{b6}.
 
-Thanks to eBPF, per-process kernel telemetry is now cheap and continuous, requiring zero changes to the application itself~\cite{b6}. But just collecting signals is not enough to guarantee safe remediation. When you are dealing with stateful workloads, three things need to be in place: there has to be an audit step before any checkpoint fires; something has to block irreversible actions until the right sequence is followed; and each cycle needs to check whether the FSM's accumulated state actually influences what gets dispatched, compared with a baseline that has no memory.
+eBPF makes per-process kernel telemetry cheap and continuous without touching the application~\cite{b6}. Collecting signals is not the same as acting on them safely. For stateful workloads three things must hold: an audit step before any checkpoint fires, a mechanism that blocks irreversible actions until the sequence is complete, and a per-cycle check of whether the FSM's accumulated state actually changes what is dispatched relative to a memoryless baseline.
 
-Right now, nothing out there checks all three boxes at once. Kubernetes's built-in remediation mechanisms~\cite{b1} do not enforce any ordering between flush and checkpoint. eBPF observability layers~\cite{b6} give you excellent signal granularity, but they do not tell you what to do with those signals safely. And as Bronson et al.~\cite{b15} showed, systems can slip into degraded states that a memoryless recovery policy is unable to reverse. The gap is architectural.
+No existing system provides all three. Kubernetes's built-in remediation~\cite{b1} enforces no ordering between flush and checkpoint; eBPF observability layers~\cite{b6} deliver fine-grained signals but no safe policy over them; and Bronson et al.~\cite{b15} show that systems can enter degraded states a memoryless recovery policy cannot reverse. The gap is architectural.
 
-The dual-track control plane we describe here tackles all three. Our contributions are as follows: (1)~a dual-track eBPF architecture with independent Type~S and Type~F pipelines (\S\ref{sec:arch}, \S\ref{sec:types}, \S\ref{sec:typef}); (2)~a five-state FSM paired with a WASM policy layer that enforces action sequencing before any irreversible checkpoint can fire; (3)~real/shadow execution that turns divergence into a first-class, continuously observable metric; and (4)~a six-metric evaluation (M1--M6) across 9,132 traces and 90 fault-injection episodes, along with an ablation that shows FSM gating is strictly necessary (\S\ref{sec:eval}).
+The dual-track control plane we describe here tackles all three. Our contributions are as follows: (1)~a dual-track eBPF architecture with independent Type~S and Type~F pipelines (\S\ref{sec:arch}, \S\ref{sec:types}, \S\ref{sec:typef}); (2)~a five-state FSM paired with a WASM policy layer that enforces action sequencing before any irreversible checkpoint can fire; (3)~real/shadow execution that turns divergence into a first-class, continuously observable metric; and (4)~a six-metric evaluation (M1--M6) across 27,592 traces and 90 fault-injection episodes, with a naive restart-on-signal baseline and an ablation showing that FSM gating is necessary (\S\ref{sec:eval}).
 
 \section{Background and Related Work}
 \label{sec:background}
 
-\textbf{Autonomic computing and MAPE-K.} Kephart and Chess~\cite{b8} defined the MAPE-K loop~\cite{b7} as the standard self-managing architecture. Our design maps onto it directly: eBPF probes serve as Monitor, per-track scorers as Analyse, the FSM-gated DAG as Plan, and the action executor as Execute---split into two independent branches on a shared event bus.
+\textbf{Autonomic computing and MAPE-K.} Kephart and Chess~\cite{b8} defined the MAPE-K loop~\cite{b7} as the standard self-managing architecture. Our design maps onto it directly: eBPF probes as Monitor, per-track scorers as Analyse, the FSM-gated DAG as Plan and the executor as Execute, split into two branches on a shared event bus.
 
-\textbf{Kubernetes operators.} Kubernetes's built-in controllers and Pod Autoscalers~\cite{b1} remediate via pod restarts and replica scaling only; state-machine monitoring~\cite{b10} adds anomaly detection but not safe recovery sequencing. Neither operates at the I/O-path signal level---precisely where stateful workload risk materialises.
+\textbf{Kubernetes operators.} Kubernetes controllers and autoscalers~\cite{b1} remediate through pod restarts and replica scaling only; state-machine monitoring~\cite{b10} adds anomaly detection but not recovery sequencing. Neither operates at the I/O-path signal level where stateful risk materialises.
 
-\textbf{eBPF and observability.} BCC~\cite{b6} makes kernel-level probes cheap enough to run continuously. Our implementation attaches kprobes on \texttt{blk\_account\_io\_start/done}, kretprobes on \texttt{vfs\_write/read}, and tracepoints on \texttt{sys\_enter\_umount/mount}---I/O and filesystem visibility requiring no application modification. Basiri et al.~\cite{b3} formalise fault injection as a technique to expose systemic weaknesses; the M3 harness applies the same idea at the signal level, driving the full FSM recovery path synthetically.
+\textbf{eBPF and observability.} BCC~\cite{b6} makes kernel probes cheap enough to run continuously; ours attach kprobes on \texttt{blk\_account\_io\_start/done}, kretprobes on \texttt{vfs\_write/read} and tracepoints on mount and unmount, with no application changes. Basiri et al.~\cite{b3} formalise fault injection as a way to expose systemic weakness; the M3 harness applies the idea at the signal level.
 
-\textbf{Formal methods and shadow execution.} TLA+~\cite{b9} supports formal verification of state-machine properties at design time; the FSM here enforces the same constraints at runtime via executable guards. Each reconcile cycle also runs on a fresh throwaway FSM copy alongside the live path; any difference in the dispatched action is logged as M2. WebAssembly isolates each module's memory and execution by design~\cite{b11}, so a WASM module~\cite{b4} acts as the second enforcement gate at the execution boundary, independent of the FSM.
+\textbf{Formal methods and shadow execution.} TLA+~\cite{b9} verifies state-machine properties at design time; the FSM here enforces the same constraints at runtime through executable guards. Each cycle also runs on a fresh throwaway FSM beside the live one, and any difference in the dispatched action is logged as M2. WebAssembly isolates a module's memory and execution by design~\cite{b11}, so a WASM module~\cite{b4} serves as a second gate at the execution boundary, independent of the FSM.
 
 \section{System Architecture}
 \label{sec:arch}
@@ -90,36 +92,36 @@ Fig.~\ref{fig:arch} shows the full pipeline. Both tracks follow the same path (k
 \begin{tikzpicture}[
   font=\scriptsize,
   box/.style={draw, rounded corners=2pt, minimum width=2.70cm,
-              minimum height=0.48cm, align=center, fill=white},
+              minimum height=0.42cm, align=center, fill=white},
   sbox/.style={draw, rounded corners=2pt, minimum width=2.70cm,
-               minimum height=0.48cm, align=center, fill=gray!10},
-  arr/.style={->, >=Stealth[length=4pt,width=2pt], line width=0.7pt},
+               minimum height=0.42cm, align=center, fill=gray!10},
+  arr/.style={-{Stealth[length=4pt,width=2pt]}, line width=0.7pt},
   wide/.style={draw, rounded corners=2pt, minimum width=5.85cm,
-               minimum height=0.48cm, align=center, fill=white},
+               minimum height=0.42cm, align=center, fill=white},
 ]
 % ---- Kernel layer (two-line node so text fits in column width) ----
-\node[wide, minimum height=0.72cm] (ebpf) at (0, 5.40)
+\node[wide, minimum height=0.72cm] (ebpf) at (0, 4.95)
   {\textbf{Kernel eBPF Probes}\\
    \texttt{process\_exit} $\cdot$ \texttt{tcp\_connect} $\cdot$ \texttt{blk\_io} $\cdot$ \texttt{vfs}};
 
 % ---- perf buffer ----
-\node[wide] (buf) at (0, 4.42) {perf ring buffer (per track)};
+\node[wide] (buf) at (0, 4.10) {perf ring buffer (per track)};
 \draw[arr] (ebpf) -- (buf);
 
 % ---- Track column headers (outside arrow paths) ----
-\node[font=\tiny\bfseries\itshape] at (-2.10, 3.94) {Type~S~~Stateless};
-\node[font=\tiny\bfseries\itshape] at ( 2.10, 3.94) {Type~F~~Stateful};
+\node[font=\tiny\bfseries\itshape] at (-2.10, 3.66) {Type~S~~Stateless};
+\node[font=\tiny\bfseries\itshape] at ( 2.10, 3.66) {Type~F~~Stateful};
 
 % ---- Two tracks side by side ----
-\node[sbox] (esS)  at (-1.55, 3.58) {EventListener~+~filter};
-\node[sbox] (esF)  at ( 1.55, 3.58) {EventListener~+~filter};
-\node[sbox] (ssS)  at (-1.55, 2.74) {StateStore (60\,s)};
-\node[sbox] (ssF)  at ( 1.55, 2.74) {StatefulStateStore (60\,s)};
-\node[sbox] (scS)  at (-1.55, 1.90) {Confidence Scorer~S};
-\node[sbox] (scF)  at ( 1.55, 1.90) {Confidence Scorer~F};
-\node[sbox] (dagS) at (-1.55, 1.06) {Threshold DAG};
-\node[sbox] (dagF) at ( 1.55, 1.06) {FSM-Gated DAG};
-\node[box]  (pol)  at ( 1.55, 0.22) {WASM Policy Layer};
+\node[sbox] (esS)  at (-1.55, 3.32) {EventListener~+~filter};
+\node[sbox] (esF)  at ( 1.55, 3.32) {EventListener~+~filter};
+\node[sbox] (ssS)  at (-1.55, 2.58) {StateStore (60\,s)};
+\node[sbox] (ssF)  at ( 1.55, 2.58) {StatefulStateStore (60\,s)};
+\node[sbox] (scS)  at (-1.55, 1.84) {Confidence Scorer~S};
+\node[sbox] (scF)  at ( 1.55, 1.84) {Confidence Scorer~F};
+\node[sbox] (dagS) at (-1.55, 1.10) {Threshold DAG};
+\node[sbox] (dagF) at ( 1.55, 1.10) {FSM-Gated DAG};
+\node[box]  (pol)  at ( 1.55, 0.36) {WASM Policy Layer};
 
 % Vertical arrows within each track
 \foreach \a/\b in {buf/esS, esS/ssS, ssS/scS, scS/dagS}
@@ -128,19 +130,19 @@ Fig.~\ref{fig:arch} shows the full pipeline. Both tracks follow the same path (k
   \draw[arr] (\a) -- (\b);
 
 % ---- Shared action executor ----
-\node[wide, minimum height=0.64cm] (exec) at (0,-0.80)
+\node[wide, minimum height=0.64cm] (exec) at (0,-0.50)
   {Action Executor\\
    \textit{real path: executed\quad shadow path: suppressed}};
 \draw[arr] (dagS) -- (exec);
 \draw[arr] (pol)  -- (exec);
 
 % ---- Output ----
-\node[wide] (trace) at (0,-1.72)
+\node[wide] (trace) at (0,-1.32)
   {TraceLogger $\rightarrow$ execution traces \,$\cdot$\, divergence log};
 \draw[arr] (exec) -- (trace);
 
 % Vertical divider between the two tracks
-\draw[dashed, gray!60] (0, 3.70) -- (0, -0.20);
+\draw[dashed, gray!60] (0, 3.44) -- (0, 0.05);
 \end{tikzpicture}
 \vspace{2pt}
 \caption{Dual-track control plane. Type~S and Type~F share the eBPF event bus but run independent scorers. Type~F adds an FSM-gated DAG and WASM policy layer. Both a real path (live FSM, executed) and a shadow path (fresh FSM, suppressed) run each cycle; divergences increment M2.}
@@ -184,7 +186,7 @@ Type~S maps $\rho_S$ to three actions. Thresholds: $\tau_{\mathrm{restart}} = 0.
 \end{cases}
 \end{equation*}
 
-Both actions are reversible by design. No FSM is required here---stateless workloads do not carry on-disk state that an ill-timed restart could damage. Because every restart returns the container to an identical initial state, there is no observable lifecycle---no audit phase, no sequencing constraint---that would require persistent memory across cycles.
+Both actions are reversible by design. No FSM is needed: stateless workloads carry no on-disk state that an ill-timed restart could damage, and every restart returns the container to the same initial state, so there is no lifecycle to sequence.
 
 
 \section{Type F: Stateful Control Plane}
@@ -218,7 +220,7 @@ Parameters: $\theta_{\mathrm{io}} = 5$, $\sigma_{\mathrm{io}} = 0.85$, $\theta_{
 
 \subsection{Five-State FSM}
 
-Table~\ref{tab:fsm} and Fig.~\ref{fig:fsm} give the full transition relation. The FSM persists across cycles, resetting only after full recovery. The five states correspond to the five distinct checkpoints a safe stateful recovery must pass through: normal operation (Healthy), first signal detection (Degraded), flush-and-audit completion (Audited), checkpoint dispatch (Repairing), and confirmed recovery (Recovered)---collapsing any two adjacent states would either remove the audit gate or make premature C\&R dispatch undetectable. Its central constraint: \texttt{checkpoint\_and\_restart} (CRIU~\cite{b2}) cannot fire in the same cycle that first issues \texttt{flush\_io\_queue}. In Algorithm~\ref{alg:reconcile}, step~4b fires the \texttt{audit} transition within the same call that step~4a downgrades C\&R to flush---making C\&R reachable only on the following cycle, enforcing a minimum 5\,s gap between detection and checkpoint dispatch.
+Table~\ref{tab:fsm} and Fig.~\ref{fig:fsm} give the full transition relation. The FSM persists across cycles and resets only after full recovery. Its five states are the checkpoints a safe stateful recovery must pass through: normal operation (Healthy), first detection (Degraded), flush-and-audit completion (Audited), checkpoint dispatch (Repairing) and confirmed recovery (Recovered); merging any two adjacent states would either remove the audit gate or make premature C\&R undetectable. The central constraint is that \texttt{checkpoint\_and\_restart} (CRIU~\cite{b2}) cannot fire in the cycle that first issues \texttt{flush\_io\_queue}. In Algorithm~\ref{alg:reconcile}, step~4b fires \texttt{audit} in the same call in which step~4a downgrades C\&R to flush, so C\&R becomes reachable only on the next cycle, at least 5\,s after detection.
 
 
 \begin{table}[!t]
@@ -248,12 +250,12 @@ Recovered & \texttt{degrade}         & Degraded  & $\rho_F \geq \tau_{\mathrm{fl
 \begin{figure}[!t]
 \centering
 \begin{tikzpicture}[
-  ->, >=Stealth[length=4pt,width=2pt], line width=0.7pt,
+  -{Stealth[length=4pt,width=2pt]}, line width=0.7pt,
   st/.style={draw, rounded corners=3pt,
              minimum width=1.65cm, minimum height=0.50cm,
              align=center, font=\scriptsize\bfseries, fill=white},
   lbl/.style={font=\tiny, fill=white, inner sep=1pt, sloped},
-  scale=0.96, transform shape,
+  scale=0.86, transform shape,
 ]
 % Pentagon layout: radius=2.15, clockwise from 90 deg
 % Angles: Healthy=90, Degraded=18, Audited=306, Repairing=234, Recovered=162
@@ -295,7 +297,7 @@ Recovered & \texttt{degrade}         & Degraded  & $\rho_F \geq \tau_{\mathrm{fl
 \begin{algorithm}
 \caption{Type~F FSM-Gated Reconciliation (single container $c$)}
 \label{alg:reconcile}
-\small
+\footnotesize
 \begin{algorithmic}[1]
 \REQUIRE StateStore $\mathcal{S}$, FSM $\mathcal{F}$, container $c$
 \ENSURE Decision record with \textit{action} and \textit{blocked\_reason}
@@ -342,7 +344,7 @@ Recovered & \texttt{degrade}         & Degraded  & $\rho_F \geq \tau_{\mathrm{fl
 
 Thresholds: $\tau_{\mathrm{flush}} = 0.50$, $\tau_{\mathrm{repair}} = 0.80$, $\tau_{\mathrm{escalate}} = 0.95$. \texttt{C\&R} abbreviates \texttt{checkpoint\_and\_restart}; \texttt{flush} abbreviates \texttt{flush\_io\_queue}; $q = \mathcal{F}.\mathrm{state}(c)$.
 
-On the real path the FSM is mutated in-place; on the shadow path a fresh copy runs and is discarded. A pluggable WASM policy layer~\cite{b4} re-checks FSM sequence constraints as a second enforcement gate; validation is described in \S\ref{sec:limitations}. M6 counts Python-gate suppressions only, as the corpus predates wasmtime activation (Table~\ref{tab:metrics}, footnote~$^{b}$).
+On the real path the FSM is mutated in-place; on the shadow path a fresh copy runs and is discarded. A pluggable WASM policy layer~\cite{b4} re-checks the FSM sequence constraints as a second enforcement gate and was active for the whole corpus. Because step~4a already defers every ineligible C\&R one cycle earlier, the sandbox never observes a violation in practice, so M6 counts FSM deferrals (Table~\ref{tab:metrics}, footnote~$^{b}$).
 
 \section{Research Metrics and Evaluation Framework}
 \label{sec:metrics}
@@ -363,7 +365,7 @@ M_2 = \frac{|\{t \in \mathcal{T}_{\mathrm{real}} : a_{\mathrm{real}}(t) \neq a_{
 \label{eq:M2}
 \end{equation}
 
-\textbf{M3: Mean Time to First Checkpoint Dispatch (MTTR proxy).} Mean wall-clock time from fault injection to first C\&R dispatch; this measures decision latency, not service restoration---actual container restart adds 300--1{,}300\,ms depending on workload:
+\textbf{M3: Mean Time to First Checkpoint Dispatch (MTTR proxy).} Mean wall-clock time from fault injection until the first C\&R action returns. This includes the \texttt{docker restart} itself but not service readiness, so it is a decision-latency measure rather than a true recovery time:
 \begin{equation}
 M_3 = \frac{1}{|\mathcal{E}|} \sum_{e \in \mathcal{E}} \!\left(t_{\mathrm{cr}}(e) - t_{\mathrm{fault}}(e)\right)
 \label{eq:M3}
@@ -384,41 +386,44 @@ M1, M2, M4--M6 are derived from the committed trace corpus; M3 uses a synthetic 
 
 \subsection{Experimental Setup}
 
-All experiments ran on a single ARM64 workstation (Apple M4, Ubuntu~22.04, Linux~5.15, 8\,GB RAM). Four Docker containers were monitored: \texttt{nginx}~1.29.6 (Type~S), and \texttt{postgres}~18.3, \texttt{redis}~8.6.2, and \texttt{mysql}~9.6.0 (Type~F). Reconcile interval: 5\,s; sliding window: 60\,s (MTTR episodes: 120\,s). All decisions were logged for offline analysis.
+All experiments ran on a single ARM64 workstation (Apple M4, Ubuntu~22.04, Linux~5.15, 8\,GB RAM) against four Docker containers: \texttt{nginx}~1.29.6 (Type~S), and \texttt{postgres}~18.3, \texttt{redis}~8.6.2 and \texttt{mysql}~9.6.0 (Type~F). The controller ran the real and shadow paths every cycle with \texttt{wasmtime} active; reconcile interval 5\,s, sliding window 60\,s (MTTR episodes: 120\,s). The corpus is a controlled campaign, not passive observation: each container received 60\,s of injected fault and 120\,s of rest, rotating through the four in 12\,min cycles, for 12 slots per container over two collection windows. Faults were workload-specific: writes to a full device for \texttt{postgres} (\texttt{ENOSPC}), a synchronous save for \texttt{redis}, bulk autocommitted inserts for \texttt{mysql} and a worker-process kill for \texttt{nginx}; the \texttt{redis} and \texttt{mysql} faults ran under host-side direct-I/O contention so that the server's own block I/O crossed the high-latency threshold.
 
 \subsection{Trace-Based Metric Results}
 
-$M_1 = 0.0000$, $M_5 = 1.0000$: no trace carried cross-track signals, and all required explanation fields were populated across the full 9,132-record corpus (\texttt{kernel\_signals} is intentionally empty for \texttt{no\_action} decisions and is treated as valid).
+$M_1 = 0.0000$, $M_5 = 1.0000$: no trace carried cross-track signals, and every required explanation field was populated across the 27,592-record corpus (\texttt{kernel\_signals} is intentionally empty for \texttt{no\_action} decisions and is treated as valid).
 
-Both tracks achieve $M_4 = 1.0000$: all 2,113 Type-S decisions (\texttt{reschedule}) and all 95 Type-F decisions carry \texttt{reversibility="reversible"}. Neither \texttt{volume\_delete} nor \texttt{escalate} was dispatched; \texttt{escalate}'s conditional tag would lower M4 if triggered.
+Both tracks achieve $M_4 = 1.0000$: of 2,944 active real decisions (2,274 Type-S \texttt{reschedule}; 351 Type-F \texttt{flush} and 319 C\&R), all carry \texttt{reversibility="reversible"}. Neither \texttt{volume\_delete} nor \texttt{escalate} was dispatched; \texttt{escalate}'s conditional tag would lower M4 if triggered.
 
-$M_2^\mathrm{F} = M_6^\mathrm{F} = 0.0193$ (44 of 2,282 real stateful cycles); all 44 divergence records appear in the stateful divergence log with the pair \texttt{checkpoint\_and\_restart}$\rightarrow$\texttt{flush\_io\_queue}. On the stateless track, shadow and real paths run the same memoryless DAG: $M_2^\mathrm{S} = 0.0000$, giving $M_2^\mathrm{overall} = 0.0096$. The equality $M_2^\mathrm{F} = M_6^\mathrm{F}$ is not a coincidence---it is structural. Each of the 44 C\&R-eligible episodes produces exactly one M6 cycle (real FSM in Degraded blocks C\&R; shadow issues \texttt{flush}; no divergence) and one M2 cycle (real FSM in Audited approves C\&R; shadow defers to \texttt{flush}; divergence logged).
+$M_2^\mathrm{F} = 0.0474$ (319 of 6,735 real stateful cycles) and $M_6^\mathrm{F} = 0.0466$ (314 of 6,735); every divergence record carries the pair \texttt{checkpoint\_and\_restart}$\rightarrow$\texttt{flush\_io\_queue}. On the stateless track both paths run the same memoryless DAG, so $M_2^\mathrm{S} = 0.0000$ and $M_2^\mathrm{overall} = 0.0231$. The two stateful rates count the two halves of one sequence: a deferral cycle, where the real FSM in Degraded downgrades C\&R to \texttt{flush} and the shadow does the same (M6, no divergence), then an approval cycle, where the real FSM in Audited dispatches C\&R while the shadow still flushes (M2). In 294 cases the halves are adjacent, as they always were in the single-container corpus. Twenty deferrals had no following C\&R because the fault cleared before the next cycle and left the FSM in Audited; 25 dispatches had no preceding deferral because a later fault arrived against that stale Audited state, which Table~\ref{tab:fsm} never exits on fault clearance. The pairing is structural for one episode from Healthy; repeated faults against a stale audit break it (\S\ref{sec:limitations}).
 
 \subsection{Fault-Injection MTTR Campaign}
 \label{sec:m3}
 
 $M_3$ was measured using a dedicated fault-injection harness: eight \texttt{blk\_io\_latency} events (50--54\,ms) are injected into a fresh \texttt{StatefulStateStore} (window 120\,s), reconciling every 5\,s and recording wall time from injection to first C\&R dispatch. This captures the structural two-cycle delay---\texttt{flush} fires in cycle~1 (Healthy$\rightarrow$Degraded$\rightarrow$Audited) and C\&R is approved in cycle~2. Unlike state-perturbation approaches~\cite{b12}, injection here measures decision latency, not latent bugs.
 
-Across three workloads ($N = 30$ episodes each, 90 total; Fig.~\ref{fig:mttr}): \texttt{postgres} $\mu = 10.87$\,s ($\sigma = 0.09$\,s); \texttt{redis} $\mu = 10.40$\,s ($\sigma = 0.03$\,s); \texttt{mysql} $\mu = 11.54$\,s ($\sigma = 0.10$\,s), where $\sigma$ denotes population standard deviation ($N$~denominator). All 90 episodes recovered through \texttt{docker restart}. CRIU restore fails inside Docker's experimental checkpoint path for \texttt{postgres} and \texttt{redis}, and checkpoint creation fails outright for \texttt{mysql} (\S\ref{sec:limitations}).
+Across three workloads ($N = 30$ episodes each, 90 total; Fig.~\ref{fig:mttr}): \texttt{postgres} $\mu = 10.95$\,s ($\sigma = 0.06$\,s); \texttt{redis} $\mu = 10.43$\,s ($\sigma = 0.03$\,s); \texttt{mysql} $\mu = 11.66$\,s ($\sigma = 0.13$\,s), where $\sigma$ denotes population standard deviation ($N$~denominator). All 90 episodes recovered through \texttt{docker restart} with no timeouts, and in each one the cycle-1 \texttt{flush} completed a verified durable flush (30--120\,ms) before C\&R was authorised. CRIU restore fails inside Docker's experimental checkpoint path for \texttt{postgres} and \texttt{redis}, and checkpoint creation fails outright for \texttt{mysql} (\S\ref{sec:limitations}).
+
+We ran the same harness against a naive restart-on-signal controller, which dispatches C\&R on the first cycle that sees any fault event, with no confidence score, no FSM and no flush. It is a local restart policy, not a Kubernetes liveness probe. It recovered in 5.80\,s (\texttt{postgres}, $\sigma = 0.05$), 5.35\,s (\texttt{redis}, 0.02) and 6.54\,s (\texttt{mysql}, 0.10). The gap of about 5\,s is one reconcile interval: the cost of the flush-and-audit cycle the naive controller skips.
 
 \begin{figure}[!t]
 \centering
 \begin{tikzpicture}
 \begin{axis}[
   ybar,
-  bar width=0.55cm,
+  bar width=0.34cm,
   xlabel={Workload},
   ylabel={Mean MTTR (s)},
   xlabel style={font=\small},
   ylabel style={font=\small},
-  ymin=10.0, ymax=12.5,
+  ymin=0, ymax=13.5,
+  legend style={font=\tiny, at={(0.5,-0.42)}, anchor=north, draw=none, fill=none, legend columns=2, column sep=6pt},
   symbolic x coords={postgres,redis,mysql},
   xtick=data,
   xticklabel style={font=\small},
   yticklabel style={font=\small},
-  ytick={10.0,10.5,11.0,11.5,12.0},
+  ytick={0,2,4,6,8,10,12},
   ymajorgrids=true, grid style={dashed,gray!35},
-  enlarge x limits=0.4,
+  enlarge x limits=0.3,
   width=0.90\columnwidth, height=4.0cm,
   every node near coord/.append style={font=\tiny, text=black,
     /pgf/number format/fixed, /pgf/number format/precision=2,
@@ -428,20 +433,29 @@ Across three workloads ($N = 30$ episodes each, 90 total; Fig.~\ref{fig:mttr}): 
 ]
 \addplot+[
   fill=gray!40, draw=black,
-  error bars/.cd, y dir=plus, y explicit, draw color=black,
+  error bars/.cd, y dir=plus, y explicit, error bar style={draw=black},
 ] coordinates {
-  (postgres, 10.87) +- (0, 0.09)
-  (redis,    10.40) +- (0, 0.03)
-  (mysql,    11.54) +- (0, 0.10)
+  (postgres, 10.95) +- (0, 0.06)
+  (redis,    10.43) +- (0, 0.03)
+  (mysql,    11.66) +- (0, 0.13)
 };
+\addplot+[
+  fill=white, draw=black, postaction={pattern=north east lines, pattern color=gray!60},
+  error bars/.cd, y dir=plus, y explicit, error bar style={draw=black},
+] coordinates {
+  (postgres, 5.80) +- (0, 0.05)
+  (redis,    5.35) +- (0, 0.02)
+  (mysql,    6.54) +- (0, 0.10)
+};
+\legend{proposed, naive restart-on-signal}
 \end{axis}
 \end{tikzpicture}
-\caption{Mean MTTR per workload ($N = 30$ each, all recovered). Upper error bars: $1\sigma$ (within-workload). The 1.14\,s spread comes from \texttt{docker restart} startup cost; $\sigma/\mu < 1\%$ per workload reflects FSM determinism.}
+\caption{Mean MTTR per workload ($N = 30$ each, all recovered), proposed controller and naive baseline. Upper error bars: $1\sigma$. The spread across workloads is \texttt{docker restart} startup cost; $\sigma/\mu \approx 1\%$ reflects FSM determinism. The 5\,s gap is the flush-and-audit cycle.}
 \label{fig:mttr}
 \end{figure}
 
 \begin{table*}[!t]
-\caption{METRIC VALUES. M1--M2, M4--M6: DERIVED FROM THE COMMITTED TRACE CORPUS ($N = 9{,}132$ TOTAL TRACES; $N_{\mathrm{real}}^{\mathrm{F}} = 2{,}282$, $N_{\mathrm{real}}^{\mathrm{S}} = 2{,}284$). M3: SYNTHETIC FAULT INJECTION HARNESS ($N = 90$ EPISODES, 3 WORKLOADS).}
+\caption{METRIC VALUES. M1--M2, M4--M6: DERIVED FROM THE COMMITTED TRACE CORPUS ($N = 27{,}592$ TOTAL TRACES; $N_{\mathrm{real}}^{\mathrm{F}} = 6{,}735$, $N_{\mathrm{real}}^{\mathrm{S}} = 7{,}061$). M3: SYNTHETIC FAULT INJECTION HARNESS ($N = 90$ EPISODES, 3 WORKLOADS).}
 \label{tab:metrics}
 \centering
 \renewcommand{\arraystretch}{1.05}
@@ -449,15 +463,15 @@ Across three workloads ($N = 30$ episodes each, 90 total; Fig.~\ref{fig:mttr}): 
 \hline
 \textbf{Metric} & \textbf{Type S} & \textbf{Type F} & \textbf{Overall} & \textbf{Note} \\
 \hline
-M1 (misclassification)  & 0.0000 & 0.0000 & 0.0000 & $N = 9{,}132$ traces; zero contaminated records \\
-M2 (divergence rate)    & 0.0000 & 0.0193 & 0.0096 & 44 of 2{,}282 real Type-F cycles; 44/4{,}566 overall \\
-M3 (MTTR, seconds)      & ---    & ---    & ---    & postgres 10.87\,s, redis 10.40\,s, mysql 11.54\,s; $N=30$ each ($^{a}$) \\
-M4 (reversibility)      & 1.0000 & 1.0000 & 1.0000 & Type-F: 95 active decisions (flush=51, C\&R=44); Type-S: 2{,}113 (\texttt{reschedule}) \\
-M5 (expl.\ complete)    & 1.0000 & 1.0000 & 1.0000 & Zero missing required fields across 9{,}132 traces \\
-M6 (suppression rate)   & 0.0000 & 0.0193 & 0.0096 & 44 FSM-gated actions ($^{b}$) \\
+M1 (misclassification)  & 0.0000 & 0.0000 & 0.0000 & $N = 27{,}592$ traces; zero contaminated records \\
+M2 (divergence rate)    & 0.0000 & 0.0474 & 0.0231 & 319 of 6{,}735 real Type-F cycles; 319/13{,}796 overall \\
+M3 (MTTR, seconds)      & ---    & ---    & ---    & postgres 10.95\,s, redis 10.43\,s, mysql 11.66\,s; naive 5.80 / 5.35 / 6.54\,s; $N=30$ each ($^{a}$) \\
+M4 (reversibility)      & 1.0000 & 1.0000 & 1.0000 & Type-F: 670 active decisions (flush=351, C\&R=319); Type-S: 2{,}274 (\texttt{reschedule}) \\
+M5 (expl.\ complete)    & 1.0000 & 1.0000 & 1.0000 & Zero missing required fields across 27{,}592 traces \\
+M6 (suppression rate)   & 0.0000 & 0.0466 & 0.0228 & 314 FSM deferral cycles ($^{b}$) \\
 \hline
-\multicolumn{5}{@{}p{\dimexpr\linewidth-2\tabcolsep\relax}@{}}{\footnotesize $^{a}$All 90 episodes recovered (0 timeouts). Two-cycle sequence confirmed in all episodes. Per-workload $\sigma$: postgres 0.09\,s, redis 0.03\,s, mysql 0.10\,s. CRIU restore falls back to \texttt{docker restart} (\S\ref{sec:limitations}).}\\
-\multicolumn{5}{@{}p{\dimexpr\linewidth-2\tabcolsep\relax}@{}}{\footnotesize $^{b}$Python FSM gate is primary enforcer; this count predates wasmtime activation. WASM sandbox validated separately (all 20 policy cases correct); steady-state overhead 27\,$\mu$s mean, 50\,$\mu$s at p99 ($N = 10{,}000$, \S\ref{sec:overhead}).}
+\multicolumn{5}{@{}p{\dimexpr\linewidth-2\tabcolsep\relax}@{}}{\footnotesize $^{a}$All 90 episodes recovered under each controller (0 timeouts). Flush-then-C\&R confirmed in every proposed-controller episode. Per-workload $\sigma$: postgres 0.06\,s, redis 0.03\,s, mysql 0.13\,s (naive: 0.05 / 0.02 / 0.10\,s). CRIU restore falls back to \texttt{docker restart} (\S\ref{sec:limitations}).}\\
+\multicolumn{5}{@{}p{\dimexpr\linewidth-2\tabcolsep\relax}@{}}{\footnotesize $^{b}$\texttt{wasmtime}~45.0.0 was active for the entire corpus (zero fallback records). The sandbox rejected no dispatch, because the FSM gate defers every ineligible C\&R one cycle earlier; all 314 suppressions are FSM deferrals. Steady-state sandbox overhead 27\,$\mu$s mean, 50\,$\mu$s at p99 ($N = 10{,}000$, \S\ref{sec:overhead}).}
 \end{tabular}
 \end{table*}
 
@@ -468,10 +482,10 @@ Across 12 scenarios (4 stateful, 8 stateless) $\times$ 30 trials each, all four 
 \subsection{Baseline Comparison and Ablation}
 \label{sec:ablation}
 
-We replayed the $N = 2{,}282$ real stateful trace entries from the committed trace corpus under three counterfactual decision policies to measure the FSM's contribution directly. The recorded \texttt{score} values are held fixed; only the decision mechanism changes (Table~\ref{tab:ablation}).
+We replayed the $N = 6{,}735$ real stateful trace entries from the committed trace corpus under three counterfactual decision policies to measure the FSM's contribution directly. The recorded \texttt{score} values are held fixed; only the decision mechanism changes (Table~\ref{tab:ablation}).
 
 \begin{table}[t]
-\caption{Decision-policy ablation on $N = 2{,}282$ real Type-F traces. Scores fixed; only decision mechanism varies. \emph{Unsafe C\&R}: premature dispatch from pre-audit state. \emph{Missed C\&R}: suppressed by memoryless or binary policy.}
+\caption{Decision-policy ablation on $N = 6{,}735$ real Type-F traces. Scores fixed; only decision mechanism varies. \emph{Unsafe C\&R}: premature dispatch from pre-audit state. \emph{Missed C\&R}: suppressed by memoryless or binary policy.}
 \label{tab:ablation}
 \centering
 \renewcommand{\arraystretch}{1.15}
@@ -480,23 +494,23 @@ We replayed the $N = 2{,}282$ real stateful trace entries from the committed tra
 \hline
 Controller & C\&R dispatched & Unsafe C\&R & Missed C\&R \\
 \hline
-Proposed (full FSM) & 44\;(1.93\%) & 0 & 0 \\
-No-FSM (always-restart) & 88\;(3.86\%) & 44 & 0 \\
-Threshold-only (shadow) & 0\;\;\;(0\%) & 0 & 44 \\
-No-confidence (binary)  & 0\;\;\;(0\%) & 0 & 44$^{c}$ \\
+Proposed (full FSM) & 319\;(4.74\%) & 0 & 0 \\
+No-FSM (always-restart) & 633\;(9.40\%) & 314 & 0 \\
+Threshold-only (shadow) & 0\;\;\;(0\%) & 0 & 319 \\
+No-confidence (binary)  & 0\;\;\;(0\%) & 0 & 319$^{c}$ \\
 \hline
-\multicolumn{4}{p{0.88\columnwidth}}{\footnotesize $^{c}$7 extra \texttt{flush} dispatches (binary score $0.75\geq\tau_{\mathrm{flush}}$) also disagree with baseline \texttt{no\_action}; total disagreements\,=\,51.} \\
+\multicolumn{4}{p{0.88\columnwidth}}{\footnotesize $^{c}$77 extra \texttt{flush} dispatches (binary score $0.75\geq\tau_{\mathrm{flush}}$) also disagree with baseline \texttt{no\_action}; total disagreements\,=\,396.} \\
 \end{tabular}%
 }
 \end{table}
 
-\textbf{No-FSM.} Removing state gating doubles the C\&R rate to 88; all 44 extra dispatches are premature---they fire from a pre-audit state in cycles where the full controller defers C\&R to the next cycle.
+\textbf{No-FSM.} Removing state gating raises the C\&R count from 319 to 633. All 314 extra dispatches are premature: they fire from a pre-audit state in exactly the cycles where the full controller defers C\&R, which are the 314 cycles M6 counts.
 
-\textbf{Threshold-only (shadow path).} A stateless policy equivalent to resetting the FSM each cycle can never reach Audited and misses all 44 legitimate C\&R opportunities. This is exactly what the shadow path computes: $M_2 = 0.0193$ quantifies how often this memoryless computation disagrees with the real path.
+\textbf{Threshold-only (shadow path).} A stateless policy equivalent to resetting the FSM each cycle can never reach Audited and misses all 319 legitimate C\&R opportunities. This is what the shadow path computes: $M_2^\mathrm{F} = 0.0474$ is how often that memoryless computation disagrees with the real path.
 
 \textbf{No-confidence.} Binary scoring maps any above-threshold signal combination to a fixed score of 0.75 (score $\in \{0, 0.75\}$); since $0.75 < \tau_{\mathrm{repair}} = 0.80$, this yields 0 C\&R dispatches---every fault cycle is downgraded before the FSM is consulted. Graduated confidence scoring is a prerequisite for C\&R to be reachable.
 
-With the full FSM, the controller dispatches exactly 44 C\&Rs---all from Audited state, none premature, none missed. The no-FSM variant fires too early; the memoryless variant cannot fire at all; only the full FSM gets both right, accumulating evidence across cycles before authorising the irreversible action.
+With the full FSM, the controller dispatches exactly 319 C\&Rs, all from Audited state, none premature and none missed. The no-FSM variant fires too early; the memoryless variant cannot fire at all; only the full FSM gets both right, accumulating evidence across cycles before authorising the irreversible action.
 
 
 \subsection{Runtime Overhead}
@@ -509,63 +523,36 @@ Two overhead sources are benchmarked: WASM \texttt{policy\_check()} averages 27\
 
 \subsection{Design Choices}
 
-\textbf{Scoring model.} We use a max combiner in~\eqref{eq:rhoS} and~\eqref{eq:rhoF} so that a weak signal cannot mask a dominant fault indicator; keeping score ceilings below 1.0 leaves room for future signal classes without re-tuning existing thresholds. Type~S skips the FSM entirely: stateless workloads hold no on-disk state at risk from an early restart. Because both paths run the same memoryless DAG, M2 is only meaningful on the Type~F track.
+\textbf{Scoring model.} The max combiner in~\eqref{eq:rhoS} and~\eqref{eq:rhoF} prevents a weak signal from masking a dominant one; score ceilings below 1.0 leave room for new signal classes without re-tuning thresholds. Type~S skips the FSM because stateless workloads hold no state at risk, and since both of its paths run the same memoryless DAG, M2 is meaningful only on Type~F.
 
-\textbf{Parameter rationale.} The 5\,s interval lets two full reconcile cycles finish before a worsening fault can cascade into data loss, and the 60\,s window captures enough probe samples to separate sustained degradation from transient spikes. We use separate tracks rather than a unified controller because merging the DAG and FSM would couple two independent failure models and make the sequencing guarantee harder to verify.
+\textbf{Parameter rationale.} The 5\,s interval lets two reconcile cycles complete before a worsening fault can cascade into data loss; the 60\,s window separates sustained degradation from transient spikes. Separate tracks, rather than one controller, keep the two failure models decoupled and the sequencing guarantee easy to verify.
 
 \subsection{Limitations}
 \label{sec:limitations}
 
-\textbf{Platform scope.} All experiments ran on a single workstation (Linux~5.15, not a Kubernetes cluster); kprobe attachment points---particularly \texttt{blk\_account\_io\_start} and \texttt{blk\_account\_io\_done}, which 6.x block-layer refactors could affect---may require updating on newer kernels; as far as we know, \texttt{vfs\_write}, \texttt{vfs\_read}, and the \texttt{sched\_process\_exit} tracepoint are stable through 6.8. Workload classification is static at startup. eBPF probes are kernel-global; attribution relies on the \texttt{comm} field, which He et al.~\cite{b16} show is vulnerable to cross-container attacks in shared-kernel multi-tenant deployments.
+\textbf{Platform scope.} All experiments ran on a single workstation (Linux~5.15, not a Kubernetes cluster). Kprobe attachment points may need updating on newer kernels, in particular \texttt{blk\_account\_io\_start} and \texttt{blk\_account\_io\_done}, which 6.x block-layer refactors could affect; to our knowledge \texttt{vfs\_write}, \texttt{vfs\_read} and the \texttt{sched\_process\_exit} tracepoint are stable through 6.8. Workload classification is static at startup. eBPF probes are kernel-global; attribution relies on the \texttt{comm} field, which He et al.~\cite{b16} show is vulnerable to cross-container attacks in shared-kernel multi-tenant deployments.
 
-\textbf{CRIU.} Checkpoint creation succeeds on \texttt{postgres}, averaging 405\,ms over $N=30$ runs, and on \texttt{redis}. Restore is where it breaks. Docker's experimental \texttt{start~--checkpoint} path resolves the restored task to PID~0, then aborts trying to bind-mount \texttt{/proc/0/ns/net}, which is not a valid process; we observed this directly on \texttt{postgres}. The same failure is reported upstream against a newer Docker, runc, and kernel stack than ours, and was closed as not planned (containerd\#12141\footnote{\url{https://github.com/containerd/containerd/issues/12141}}). That it reproduces on unrelated hardware confirms the defect is Docker's rather than an artefact of our environment. \texttt{mysql} never gets that far. Its dump aborts because \texttt{mysqld} holds 17 POSIX file locks on the InnoDB data files, and CRIU refuses to dump a task holding locks unless it is invoked with \texttt{--file-locks}, which runc does not pass. Both failures are defects in Docker's checkpoint integration rather than kernel restrictions, so a newer kernel would not fix either. Every episode therefore falls back to \texttt{docker restart}. None of this weakens the sequencing guarantee, which the FSM enforces at the decision layer before any checkpoint backend is invoked. A maintained backend would sidestep the problem: Podman's \texttt{container checkpoint}, or the CRI-native path added in Kubernetes~1.30 (KEP-2008)\footnote{\url{https://github.com/kubernetes/enhancements/issues/2008}}.
+\textbf{CRIU.} Checkpoint creation succeeds on \texttt{postgres} (405\,ms mean, $N=30$) and \texttt{redis}; restore does not. Docker's experimental \texttt{start~--checkpoint} resolves the restored task to PID~0 and aborts while bind-mounting \texttt{/proc/0/ns/net}. The same failure is reported upstream on a newer Docker, runc and kernel stack and was closed as not planned (containerd\#12141\footnote{\url{https://github.com/containerd/containerd/issues/12141}}), so it is Docker's defect rather than an artefact of our setup. \texttt{mysql} fails earlier: \texttt{mysqld} holds 17 POSIX file locks on the InnoDB files, and CRIU will not dump a task holding locks unless invoked with \texttt{--file-locks}, which runc does not pass. Neither is a kernel restriction, so a newer kernel would fix neither, and every episode falls back to \texttt{docker restart}. This does not weaken the sequencing guarantee. \texttt{flush\_io\_queue} performs a real durable flush (a synchronous checkpoint on \texttt{postgres}, a synchronous save on \texttt{redis}, an \texttt{fsync}'d redo-log write on \texttt{mysql}), and the FSM orders it before every restart whether or not CRIU succeeds; that ordering is the guarantee. A maintained backend such as Podman's \texttt{container checkpoint} or the CRI-native path in Kubernetes~1.30 (KEP-2008)\footnote{\url{https://github.com/kubernetes/enhancements/issues/2008}} would let it extend to a true checkpoint/restore.
 
-\textbf{Fault injection.} M3 rests on $N = 90$ synthetic episodes; injection inserts events directly into the \texttt{StatefulStateStore}, bypassing the eBPF probe path. Real VFS injection (\texttt{/dev/full}, \texttt{stress-ng}) would make full detection-to-recovery latency observable.
+\textbf{Fault injection.} M3 rests on $N = 90$ synthetic episodes whose events are inserted directly into the \texttt{StatefulStateStore}; the corpus faults, by contrast, pass through the eBPF probe path. Linking M3 to that path end to end remains open.
 
 \textbf{Corpus coverage.} All active stateless decisions fell into the \texttt{reschedule} branch; the \texttt{restart} branch and \texttt{tcp\_connect} signal path are implemented and covered by internal self-tests but do not appear in the committed trace corpus, which reflects the specific fault scenarios evaluated.
 
-\textbf{WASM sandbox.} Validated (\texttt{wasmtime}~45.0.0): all 20 policy cases correct (6 per action module, 2 for \texttt{no\_action}), overhead 27\,$\mu$s mean (50\,$\mu$s p99). Since the trace corpus predates wasmtime activation, M6 counts reflect Python-gate suppressions only.
+\textbf{WASM sandbox.} Validated (\texttt{wasmtime}~45.0.0): all 20 isolated policy cases correct, overhead 27\,$\mu$s mean (50\,$\mu$s p99). The sandbox was active for the whole corpus but rejected no live dispatch, since the FSM gate defers every ineligible C\&R first; M6 therefore counts FSM deferrals. It is not a no-op: a gate bug that passed the post-transition state to the sandbox silently blocked every live C\&R for two months before this corpus was collected, which is how we know it is load-bearing.
+
+\textbf{Repeated dispatch and the Audited state.} Within one 60\,s fault, C\&R fires about every 10\,s rather than once, because the workload is still faulting after each restart; no backoff suppresses repeated dispatch against an unresolved fault. Table~\ref{tab:fsm} also has no transition out of Audited when a fault clears, so a container can sit in Audited through a quiet interval and, on the next fault, dispatch C\&R against a stale audit. This is the cause of the 20 unpaired deferrals and 25 unpaired dispatches in \S\ref{sec:eval}. An Audited$\rightarrow$Healthy transition on fault clearance would restore the exact pairing; we report the behaviour rather than re-architect against it.
 
 \subsection{Future Work}
 
-The most natural next steps are Kubernetes deployment (DaemonSet-based probe agents, multi-node evaluation), real VFS fault injection to link M3 to the full detection-to-recovery path, and formal verification of the FSM transition relation in Table~\ref{tab:fsm}. TLA+~\cite{b9} can express the safety properties, and a framework like Anvil~\cite{b13} could extend this to liveness proofs for the full stateful control path. In a Kubernetes setting (Fig.~\ref{fig:k8s}), each node runs a privileged DaemonSet pod that loads the eBPF probes and maintains local FSM instances, avoiding cross-node coordination in the reconcile loop. Workload classification shifts from the static \texttt{comm} allow-list to pod labels assigned by a mutating admission webhook, and \texttt{docker restart} is replaced by pod deletion through the owning controller. Each node reports its divergence records centrally, which turns M2 into a cluster-wide control-plane health signal rather than a per-host one. None of this requires the architecture in Fig.~\ref{fig:arch} to change, since the FSM instances on each node already run independently of one another.
+The natural next steps are Kubernetes deployment, real VFS fault injection that links M3 to the full detection-to-recovery path, and formal verification of Table~\ref{tab:fsm}: TLA+~\cite{b9} can express the safety properties, and Anvil~\cite{b13} could extend them to liveness proofs. In a cluster, each node would run a privileged DaemonSet pod that loads the probes and keeps local FSM instances, so the reconcile loop needs no cross-node coordination. Classification would move from the static \texttt{comm} allow-list to pod labels set by an admission webhook, \texttt{docker restart} would become pod deletion through the owning controller, and per-node divergence records reported centrally would turn M2 into a cluster-wide control-plane health signal. None of this changes the architecture in Fig.~\ref{fig:arch}, since the per-node FSMs already run independently.
 
-\begin{figure}[!t]
-\centering
-\begin{tikzpicture}[
-  font=\scriptsize,
-  nbox/.style={draw, rounded corners=2pt, minimum width=2.8cm,
-               minimum height=0.85cm, align=center, fill=gray!10},
-  wide/.style={draw, rounded corners=2pt, minimum width=6.4cm,
-               minimum height=0.50cm, align=center, fill=white},
-  arr/.style={-{Stealth[length=3pt, width=2pt]}, line width=0.6pt},
-  wlabel/.style={font=\tiny, text=black!70},
-]
-\node[nbox] (n1) at (-2.1, 2.2)
-  {\textbf{Node 1}\\eBPF probes, FSM, Executor};
-\node[nbox] (n2) at ( 2.1, 2.2)
-  {\textbf{Node 2}\\eBPF probes, FSM, Executor};
-\node[wlabel, below=1pt of n1] (w1) {[postgres] Type~F};
-\node[wlabel, below=1pt of n2] (w2) {[nginx] Type~S};
-\node[wide] (dash) at (0, -0.3)
-  {Central Dashboard \normalfont(traces, M2, divergence logs)};
-\draw[arr] (w1.south) -- ([xshift=-1.0cm]dash.north)
-  node[pos=0.5, left, font=\tiny] {logs};
-\draw[arr] (w2.south) -- ([xshift=1.0cm]dash.north)
-  node[pos=0.5, right, font=\tiny] {logs};
-\end{tikzpicture}
-\caption{Target Kubernetes deployment. Each node runs a DaemonSet
-pod with local probes and FSM instances; only traces and
-divergence metrics flow to the central dashboard.}
-\label{fig:k8s}
-\end{figure}
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-Separating stateless and stateful containers onto parallel eBPF-driven control paths lets each track enforce only the constraints its failure semantics require. Stateless workloads carry no persistent state that an ill-timed restart could damage, so Type~S needs only a threshold DAG. Type~F adds a five-state FSM and WASM policy layer to enforce action sequencing and block \texttt{checkpoint\_and\_restart} until the audit phase completes. Executing each reconcile cycle on both the live FSM and a throwaway instance makes the FSM's effect on dispatch decisions directly observable.
+Separating stateless and stateful containers onto parallel eBPF-driven control paths lets each track enforce only the constraints its failure semantics require. Type~S needs a threshold DAG and nothing more. Type~F adds a five-state FSM and a WASM policy layer that hold \texttt{checkpoint\_and\_restart} until a verified flush and audit have completed, and running every cycle on both the live FSM and a throwaway copy makes the FSM's effect on dispatch directly observable.
 
-The ablation confirms that neither a stateless policy nor a memoryless baseline replicates the full system's behaviour---the two failure modes are complementary, not equivalent. FSM state persistence, WASM gating, and shadow execution together impose overhead that is negligible at the 5\,s operational timescale. New policy modules can be added to the WASM layer without touching the FSM transition relation, and the divergence metric M2 offers a continuous, interpretable signal for monitoring control-plane health post-deployment. Together, these properties make the dual-track architecture practical for production environments where stateless and stateful workloads coexist.
+The ablation shows that neither a memoryless policy nor an ungated one reproduces the full system: one cannot fire, the other fires too early. The naive baseline puts a price on the difference, one reconcile interval per recovery. FSM persistence, WASM gating and shadow execution together cost microseconds per 5\,s cycle. Policy modules can be added to the WASM layer without touching the transition relation, and M2 gives a continuous, interpretable signal of control-plane health after deployment.
 
 \begin{thebibliography}{00}
 

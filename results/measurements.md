@@ -353,3 +353,38 @@ Raw MTTR values (s): 6.81, 6.66, 6.68, 6.62, 6.52, 6.47, 6.49, 6.54, 6.51, 6.73,
 | cycles to C&R | always 1 |
 | actions | checkpoint_and_restart |
 
+
+
+---
+
+## Trace Corpus — `data/phase3/` (2026-09-02, divergence mode, four containers)
+
+Source: `scripts/launch_corpus_run.sh` (controller `run.py --real --no-dashboard --mode divergence`,
+interval 5 s, window 60 s, wasmtime active, 0 WASM-FALLBACK lines) + `scripts/fault_campaign.sh`
+(60 s injection / 120 s rest, rotation postgres→redis→mysql→nginx, 12 min per cycle).
+Collected in two campaign windows of one controller session, 2026-09-02 UTC: 08:08:40–09:38:18
+(step-2 gate + 7 cycles) and 13:26:20–14:26:30 (5 cycles) — 12 cycles, 12 slots per container.
+Faults: `scripts/inject_fault_v2.sh` (postgres COPY→/dev/full ENOSPC; redis SAVE and mysql 60 KB-row
+inserts under a host direct-I/O noisy neighbour; nginx worker kill).
+Snapshot + metrics: `scripts/finalize_corpus.py --windows …` → `data/phase3/{corpus_summary,metrics,ablation_results}.json`.
+
+| Item | April `data/phase2` | `data/phase3` |
+|------|------|------|
+| total traces | 9,132 | 27,592 |
+| N_real^F / shadow | 2,282 / 2,282 | 6,735 / 6,735 |
+| N_real^S / shadow | 2,284 / 2,284 | 7,061 / 7,061 |
+| containers (Type-F corpus) | postgres | postgres, redis, mysql, nginx |
+| WASM active | no | yes |
+| active Type-F: flush / C&R | 51 / 44 | 351 / 319 |
+| active Type-S (reschedule) | 2,113 | 2,274 |
+| divergence records (all C&R→flush) | 44 | 319 |
+| M1 | 0.0000 | 0.0000 |
+| M2 S / F / overall | 0 / 0.0193 / 0.0096 | 0 / 0.0474 / 0.0231 |
+| M4 | 1.0000 | 1.0000 |
+| M5 | 1.0000 | 1.0000 |
+| M6 S / F / overall | 0 / 0.0193 / 0.0096 | 0 / 0.0466 / 0.0228 |
+| C&R per container | postgres 44 | postgres 136, redis 106, mysql 77 |
+| sha256 stateful (16) | fad58176d1926963 | e7823e71bc457c1c |
+
+Ablation replay (N = 6,735): proposed 319 C&R (4.74%), 0 unsafe, 0 missed; no-FSM 633 (314 premature);
+threshold-only 0 (319 missed); no-confidence 0 (319 missed, 396 disagreements).

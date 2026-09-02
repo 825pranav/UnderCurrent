@@ -1,0 +1,91 @@
+{
+  "generated_at": "2026-09-02T14:40:20Z",
+  "source_file": "data/phase3/stateful_traces.jsonl",
+  "n_traces": 6735,
+  "thresholds_used": {
+    "FLUSH_THRESHOLD": 0.5,
+    "REPAIR_THRESHOLD": 0.8,
+    "ESCALATE_THRESHOLD": 0.95
+  },
+  "note": "Ablation variants re-apply decision logic to 'score' values already stored in trace entries.  The input signal is held constant; only the decision mechanism varies.  Window-dependent variants (short_window, long_window) are not implemented because raw per-window event counts are not stored in trace entries.",
+  "variants": {
+    "baseline": {
+      "description": "Actual decisions recorded in stateful/traces.jsonl (ground truth).",
+      "action_distribution": {
+        "checkpoint_and_restart": {
+          "count": 319,
+          "fraction": 0.0474
+        },
+        "flush_io_queue": {
+          "count": 351,
+          "fraction": 0.0521
+        },
+        "no_action": {
+          "count": 6065,
+          "fraction": 0.9005
+        }
+      },
+      "agreement_with_baseline": 1.0
+    },
+    "no_fsm": {
+      "description": "FSM gating removed \u2014 always-restart baseline.  checkpoint_and_restart dispatched whenever score >= 0.80 regardless of FSM state (no audit phase required).  Source: _decide_no_fsm() in this file.",
+      "action_distribution": {
+        "checkpoint_and_restart": {
+          "count": 633,
+          "fraction": 0.094
+        },
+        "flush_io_queue": {
+          "count": 37,
+          "fraction": 0.0055
+        },
+        "no_action": {
+          "count": 6065,
+          "fraction": 0.9005
+        }
+      },
+      "agreement_with_baseline": 0.9534,
+      "disagreements": {
+        "total": 314,
+        "baseline_flush_nofs_repair_UNSAFE": 314,
+        "baseline_repair_nofs_flush": 0
+      },
+      "premature_cr_fires": 314
+    },
+    "threshold_only": {
+      "description": "Shadow-path baseline \u2014 fresh FSM every cycle.  Equivalent to a memoryless threshold controller: C&R is always downgraded to flush_io_queue because a fresh FSM starts at Healthy and cannot reach Audited within a single cycle.  Source: _decide_threshold_only() in this file.",
+      "action_distribution": {
+        "flush_io_queue": {
+          "count": 670,
+          "fraction": 0.0995
+        },
+        "no_action": {
+          "count": 6065,
+          "fraction": 0.9005
+        }
+      },
+      "agreement_with_baseline": 0.9526,
+      "disagreements": {
+        "total": 319,
+        "baseline_repair_to_flush": 319
+      },
+      "missed_cr_fires": 319
+    },
+    "no_confidence": {
+      "description": "Continuous confidence score replaced by binary signal presence. Any fault kernel signal \u2192 score=0.75 (\u2192 checkpoint_and_restart). No fault signals \u2192 score=0.0 (\u2192 no_action). Fault signals: blk_io_latency_high, vfs_write_error, vfs_read_error, volume_mount_lost.",
+      "action_distribution": {
+        "flush_io_queue": {
+          "count": 747,
+          "fraction": 0.1109
+        },
+        "no_action": {
+          "count": 5988,
+          "fraction": 0.8891
+        }
+      },
+      "agreement_with_baseline": 0.9412,
+      "disagreements": {
+        "total": 396
+      }
+    }
+  }
+}

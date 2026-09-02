@@ -1,0 +1,102 @@
+{
+  "generated_at": "2026-09-02T14:40:20Z",
+  "sources": {
+    "stateful_traces": {
+      "exists": true,
+      "lines": 13470,
+      "mtime": 1788360019.6444392,
+      "mtime_iso": "2026-09-02T14:40:19Z"
+    },
+    "stateless_traces": {
+      "exists": true,
+      "lines": 14122,
+      "mtime": 1788360019.7284396,
+      "mtime_iso": "2026-09-02T14:40:19Z"
+    },
+    "stateful_div_log": {
+      "exists": true,
+      "lines": 319,
+      "mtime": 1788360019.7324395,
+      "mtime_iso": "2026-09-02T14:40:19Z"
+    },
+    "stateless_div_log": {
+      "exists": false,
+      "lines": 0,
+      "mtime": null
+    }
+  },
+  "trace_counts": {
+    "stateful": {
+      "total": 13470,
+      "real": 6735,
+      "shadow": 6735
+    },
+    "stateless": {
+      "total": 14122,
+      "real": 7061,
+      "shadow": 7061
+    }
+  },
+  "action_distribution": {
+    "stateful": {
+      "no_action": 6065,
+      "flush_io_queue": 351,
+      "checkpoint_and_restart": 319
+    },
+    "stateless": {
+      "reschedule": 2274,
+      "no_action": 4787
+    }
+  },
+  "kernel_signals_observed": {
+    "stateful": [
+      "blk_io_latency_high",
+      "blk_io_latency_normal",
+      "vfs_write_error"
+    ],
+    "stateless": [
+      "process_exit"
+    ]
+  },
+  "fsm_state_distribution_stateful_real": {
+    "Healthy": 3522,
+    "Audited": 2894,
+    "Recovered": 319
+  },
+  "divergence_action_pairs": {
+    "checkpoint_and_restart\u2192flush_io_queue": 319
+  },
+  "metrics": {
+    "misclassification_rate": 0.0,
+    "divergence_rate": {
+      "stateless": 0.0,
+      "stateful": 0.0474,
+      "overall": 0.0231
+    },
+    "mttr": {
+      "all": 22.8473,
+      "stateless": 845.1464,
+      "stateful": 98.2033
+    },
+    "reversibility_ratio": {
+      "all": 1.0,
+      "stateless": 1.0,
+      "stateful": 1.0
+    },
+    "explanation_completeness": {
+      "all": 1.0,
+      "stateless": 1.0,
+      "stateful": 1.0
+    },
+    "unsafe_action_suppression_rate": {
+      "all": 0.0228,
+      "stateless": 0.0,
+      "stateful": 0.0466
+    }
+  },
+  "caveats": [
+    "stateless/divergence_log.jsonl does not exist \u2014 stateless divergence_rate is 0.0. Run with --mode divergence to generate it.",
+    "stateless traces include real system processes (kernel process_exit events from non-container processes) captured by the eBPF listener. Stateless MTTR reflects real-system process lifecycle, not injected fault recovery.",
+    "mttr uses trace_time (log-write time). For decision_timestamp-based MTTR on real traces, run shared/real_metrics_report.py instead."
+  ]
+}

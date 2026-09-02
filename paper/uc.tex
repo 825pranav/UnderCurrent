@@ -538,7 +538,7 @@ WASM \texttt{policy\_check()} averages 27\,$\mu$s (p99 50\,$\mu$s, $N = 10{,}000
 
 \textbf{Corpus coverage.} Every active stateless decision was a \texttt{reschedule}; the \texttt{restart} branch and the \texttt{tcp\_connect} path are implemented and self-tested but absent from the corpus, which reflects the faults evaluated.
 
-\textbf{WASM sandbox.} Validated (\texttt{wasmtime}~45.0.0): all 20 isolated policy cases correct, at the overhead reported in \S\ref{sec:overhead}. It was active for the whole corpus but rejected no live dispatch (Table~\ref{tab:metrics}, footnote~$^{b}$). It is not a no-op: a gate bug that passed the post-transition state to the sandbox silently blocked every live C\&R for two months before this corpus was collected.
+\textbf{WASM sandbox.} Validated (\texttt{wasmtime}~45.0.0): all 20 isolated policy cases correct, at the overhead reported in \S\ref{sec:overhead}. It was active for the whole corpus but rejected no live dispatch (Table~\ref{tab:metrics}, footnote~$^{b}$).
 
 \textbf{Repeated dispatch and the Audited state.} Within one 60\,s fault, C\&R fires about every 10\,s rather than once, since the workload is still faulting after each restart and no backoff suppresses repeated dispatch. Table~\ref{tab:fsm} also has no exit from Audited when a fault clears, so a container can wait there through a quiet interval and, on the next fault, dispatch C\&R against a stale audit. This produces the 20 unpaired deferrals and 25 unpaired dispatches in \S\ref{sec:eval}. An Audited$\rightarrow$Healthy transition on fault clearance would restore the pairing; we report the behaviour rather than re-architect against it.
 

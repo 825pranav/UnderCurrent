@@ -43,10 +43,15 @@ for c in postgres redis mysql nginx; do docker restart "$c" >/dev/null; done
 sleep 15
 docker ps --format '{{.Names}} {{.Status}}'
 
-nohup sudo env PYTHONPATH=$PP python3 run.py --real --no-dashboard > "$LOG" 2>&1 &
+# --mode divergence: run the real AND shadow paths every cycle and write the
+# divergence logs (M2). The April corpus was collected this way; a plain
+# `run.py --real` forces --mode real and produces NO shadow records — the
+# 2026-09-01 8 h run was lost for M2 because of exactly that.
+nohup sudo env PYTHONPATH=$PP python3 run.py --real --no-dashboard --mode divergence > "$LOG" 2>&1 &
 echo "[launch] controller pid $!  log $LOG"
 sleep 30
 n=$(grep -ci "WASM-FALLBACK" "$LOG"); echo "[launch] WASM-FALLBACK lines: $n"
+grep -q "real vs shadow" "$LOG" || echo "[launch] WARNING: no 'real vs shadow' lines yet — divergence mode not confirmed"
 [ "$n" -eq 0 ] || { echo "ABORT: WASM fallback active (trap A)"; exit 1; }
 pgrep -f "run.py --real" >/dev/null || { echo "ABORT: controller died"; tail -20 "$LOG"; exit 1; }
 
